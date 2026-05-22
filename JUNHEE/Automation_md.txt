@@ -1,0 +1,39 @@
+# 프로젝트 명: VIN 데이터 자동화 (VIN Automation)
+
+## 🚀 개요
+Simcenter Testlab (.lms) 프로젝트 파일에서 Autopower (A) 데이터를 추출하여 엑셀 템플릿에 자동으로 기입하는 자동화 도구입니다. 사용자 친화적인 GUI를 통해 경로를 선택합니다.
+
+## 🛠 기술 스택
+- **언어:** Python 3.x
+- **라이브러리:** 
+  - `pywin32` (Testlab Window Automation Support 제어)
+  - `tkinter` (파일/폴더 선택 GUI)
+  - `openpyxl` or `pandas` (엑셀 조작 - 2차 목표 시 확정)
+- **도구:** Simcenter Testlab (COM 인터페이스 활성화 필요)
+
+## ✨ 핵심 기능
+- [ ] **1차 목표: 데이터 추출**
+  - [ ] GUI를 통한 .lms 파일 또는 폴더 경로 선택 기능
+  - [ ] Testlab Window Automation을 이용한 프로젝트 연결
+  - [ ] Autopower (A) 데이터 경로 접근 및 값 추출
+- [ ] **2차 목표: 엑셀 기입**
+  - [ ] 템플릿 엑셀 파일 선택
+  - [ ] 지정된 셀에 데이터 자동 매핑 및 저장
+
+## 📂 프로젝트 구조
+```text
+NVH-Vibe-Coding/
+├── JUNHEE/
+│   ├── VIN_Automation.py    # 메인 자동화 스크립트
+│   └── Automation_md.txt    # 프로젝트 규칙 및 진행 상황
+└── ...
+```
+
+## 🤖 AI 에이전트 지침 (바이브 코딩)
+- **스타일:** 모듈화된 코드, 명확한 주석, 사용자 오류 처리(Exception Handling) 포함.
+- **선호 사항:** `win32com.client`를 통한 안정적인 COM 연결, `tkinter` 기반의 간결한 UI.
+- **제약 사항:** Testlab 실행 환경이 필요하므로 관련 라이브러리 설치 시 주의.
+
+## 📝 개발 노트
+- 2026-05-22: 초기 요구사항 분석 및 `Automation_md.txt` 업데이트 완료.
+- 1차 목표(데이터 추출 로직) 수립 중.
