@@ -158,46 +158,47 @@ button {
 
 /* Paper Document Style */
 .paper-container {
-    width: 210mm; /* A4 Width */
-    min-height: 297mm; /* A4 Height */
+    width: 95%; /* Responsive width */
+    max-width: 1000px;
+    min-height: 297mm; /* Minimum height for A4 look */
     margin: 0 auto;
     background: #fff;
-    padding: 20mm;
+    padding: 40px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     border: 1px solid #d0d0d0;
     box-sizing: border-box;
     position: relative;
-    overflow-x: auto; /* Horizontal scroll if content overflows */
+    overflow: auto; /* Scroll if content overflows */
 }
 
 #manual-form {
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 15px;
+    line-height: 1.8;
+    white-space: pre-wrap; /* Preserve whitespace/indentation */
 }
 
-.input-group {
-    margin-bottom: 25px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #2c3e50;
-}
-
-.input-group input, .input-group textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 2px;
-    font-size: 14px;
+.input-field {
+    display: inline-block;
+    border: none;
+    border-bottom: 1px solid #333;
+    padding: 2px 5px;
+    font-size: inherit;
     font-family: inherit;
+    background: #fdfdfd;
+}
+
+.input-area {
+    width: 100%;
+    border: 1px solid #eee;
+    padding: 10px;
+    font-size: inherit;
+    font-family: inherit;
+    background: #fafafa;
 }
 
 .save-btn {
-    width: 210mm;
-    margin: 20px auto;
+    width: 300px;
+    margin: 40px auto;
     display: block;
     padding: 15px;
     background-color: #27ae60;
@@ -206,4 +207,6 @@ button {
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
+.save-btn:hover { background-color: #219150; }

@@ -17,9 +17,30 @@
     </div>
     
     <div class="container">
-        <h1>Excel to VPR Converter</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3498db; margin-bottom: 20px;">
+            <h1>Excel to VPR Converter</h1>
+            <button onclick="toggleReportList()" style="background: #2c3e50; color: white; padding: 10px;">저장된 리포트 목록</button>
+        </div>
         
-        <div class="upload-section">
+        <div id="report-list-section" style="display: none; margin-bottom: 30px; background: #fdfdfd; padding: 20px; border: 1px solid #ddd;">
+            <h3>저장된 리포트 목록</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #eee;">
+                        <th style="padding: 10px; border: 1px solid #ccc;">의뢰번호</th>
+                        <th style="padding: 10px; border: 1px solid #ccc;">Project</th>
+                        <th style="padding: 10px; border: 1px solid #ccc;">작성일</th>
+                        <th style="padding: 10px; border: 1px solid #ccc;">작업</th>
+                    </tr>
+                </thead>
+                <tbody id="report-table-body">
+                    <!-- Loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="upload-section-main">
+            <div class="upload-section">
             <div id="upload-container">
                 <div class="upload-row" id="row-1">
                     <span class="day-label">Day 1</span>

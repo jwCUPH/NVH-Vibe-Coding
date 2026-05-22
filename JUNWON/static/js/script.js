@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 progressPercent.textContent = data.percent + '%';
                             }
                         } else if (data.status === 'success') {
-                            displayManualInput(data.data);
+                            displayManualInput(data.data, data.file_names);
                         } else if (data.status === 'error') {
                             alert('에러: ' + data.message);
                         }
@@ -140,72 +140,193 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('통신 에러: ' + error.message);
         } finally {
             btn.disabled = false;
-            // Delay closing slightly to show 100%
             setTimeout(() => {
                 overlay.style.display = 'none';
             }, 500);
         }
     };
 
-    function displayManualInput(data, isMultiDay) {
+    let currentExtractedData = null;
+    let currentFileNames = [];
+
+    function displayManualInput(data, fileNames) {
+        currentExtractedData = data;
+        currentFileNames = fileNames;
         const section = document.getElementById('manual-input-section');
         const form = document.getElementById('manual-form');
-        section.style.display = 'block';
+        const uploadSection = document.getElementById('upload-section-main');
         
-        const common = data[0]; // Day 1 data for common fields
+        section.style.display = 'block';
+        uploadSection.style.display = 'none'; // Hide upload while editing
+        
+        const common = data[0]; 
         
         let html = `
-            <div class="input-group">
-                <h3>1. 기본 정보 (자동 추출)</h3>
-                <p><strong>의뢰 번호:</strong> ${common.req_no}</p>
-                <p><strong>평가 일자:</strong> ${common.date}</p>
-                <p><strong>평가자:</strong> ${common.testers}</p>
-                <p><strong>평가 차량:</strong> ${common.vehicle}</p>
-                <p><strong>Ref. 타이어:</strong> ${common.tire_ref.brand} / ${common.tire_ref.pattern} / ${common.tire_ref.size} / ${common.tire_ref.marking}</p>
-            </div>
-            <hr>
-            <h3>2. 수동 기입 및 환경 정보</h3>
-            <div class="input-group">
-                <label>2-4) 평가 장소/노면 (사용자 입력):</label>
-                <input type="text" id="m-location" placeholder="예: 남양연구소 고속주회로">
-            </div>
-            <div class="input-group">
-                <label>2-5-2) Sample 타이어 정보 (사용자 입력):</label>
-                <textarea id="m-sample-tire" rows="2"></textarea>
-            </div>
-            <div class="input-group">
-                <label>2-8) 평가 온도 (자동 추출):</label>
-                <div id="temp-display" style="background: #f9f9f9; padding: 10px; border-radius: 4px;">
-                    ${data.map(d => `
-                        <p><strong>Day ${d.day}:</strong> 대기 ${d.temp_air}, 노면 ${d.temp_road}</p>
-                    `).join('')}
-                </div>
-            </div>
-            <hr>
-            <h3>3. 평가 결과 (수동 입력)</h3>
-            <div class="input-group">
-                <label>3-2) 로드노이즈 Comment:</label>
-                <textarea id="m-roadnoise" rows="3"></textarea>
-            </div>
-            <div class="input-group">
-                <label>3-3) 패턴노이즈 Comment:</label>
-                <textarea id="m-patternnoise" rows="3"></textarea>
-            </div>
-            <div class="input-group">
-                <label>3-4) 실내소음 정량치 결과 (설명):</label>
-                <textarea id="m-quant-data" rows="2" placeholder="정량치 Table에 대한 설명 기입"></textarea>
-            </div>
-            <div class="input-group">
-                <label>4. Test Summary:</label>
-                <textarea id="m-summary" rows="4"></textarea>
-            </div>
-            <button class="save-btn" onclick="saveFinal()">최종 HTML 파일로 변환 (저장)</button>
+■ 의뢰자 정보 : ${common.client_info}
+
+1. Project : ${common.project}
+2. Tire & Test Information
+  2-1) 의뢰 번호 : ${common.req_no}
+  2-2) 평가 일자 : ${common.date}
+  2-3) 평가자 : ${common.testers}
+  2-4) 평가 장소/노면 : <input type="text" class="input-field" id="m-location" style="width: 300px;">
+  2-5) 평가 타이어
+    2-5-1) Ref. : 사이즈(${common.tire_ref.size}), 패턴(${common.tire_ref.pattern}), 브랜드(${common.tire_ref.brand}), 마킹(${common.tire_ref.marking})
+    2-5-2) Sample : 사이즈(${common.tire_sample.size}), 패턴(${common.tire_sample.pattern}), 브랜드(${common.tire_sample.brand}), 마킹(${common.tire_sample.marking})
+
+  2-6) 평가 공기압/휠 : <input type="text" class="input-field" id="m-tire-spec" style="width: 300px;">
+  2-7) 평가 차량 : ${common.vehicle}
+  2-8) 평가 온도 :
+${data.map(d => `   2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d.temp_road}`).join('\n')}
+
+3. Test Results
+  3-1) 제조품질 성능검증결과
+
+3-2) 로드노이즈
+ - <textarea class="input-area" id="m-roadnoise" rows="2"></textarea>
+
+3-3) 패턴노이즈
+ - <textarea class="input-area" id="m-patternnoise" rows="2"></textarea>
+
+3-4) 실내소음 정량치 결과
+${data.map(d => `  3-4-${d.day}) Day${d.day}
+`).join('\n')}
+
+3-5) 추가 분석 : 구조 민감도 정리
+  - <textarea class="input-area" id="m-analysis" rows="2"></textarea>
+
+4. Test Summary
+  4-1) <textarea class="input-area" id="m-summary-1" rows="2"></textarea>
+  4-2) <textarea class="input-area" id="m-summary-2" rows="2"></textarea>
+
+5. 첨부
+  5-1) NVH 실차평가 보고서 ---- ${data.length}개 파일
+${fileNames.map((name, i) => `  5-2) ${name}`).join('\n')}
         `;
         form.innerHTML = html;
         section.scrollIntoView({ behavior: 'smooth' });
     }
 
-    window.saveFinal = function() {
-        alert('3단계: HTML 생성 및 DB 저장 기능이 곧 구현됩니다.');
+    window.saveFinal = async function() {
+        if (!currentExtractedData) return;
+
+        const common = currentExtractedData[0];
+        
+        // Collect all raw inputs
+        const raw_inputs = {
+            location: document.getElementById('m-location').value,
+            tire_spec: document.getElementById('m-tire-spec').value,
+            roadnoise: document.getElementById('m-roadnoise').value,
+            patternnoise: document.getElementById('m-patternnoise').value,
+            analysis: document.getElementById('m-analysis').value,
+            summary_1: document.getElementById('m-summary-1').value,
+            summary_2: document.getElementById('m-summary-2').value
+        };
+
+        // Generate clean HTML for viewing (replacing inputs with text)
+        const formClone = document.getElementById('manual-form').cloneNode(true);
+        formClone.querySelectorAll('.input-field, .input-area').forEach(input => {
+            const span = document.createElement('span');
+            span.textContent = input.value || '-';
+            span.style.fontWeight = 'bold';
+            span.style.textDecoration = 'underline';
+            input.parentNode.replaceChild(span, input);
+        });
+
+        const finalHtml = `
+            <div class="paper-container" style="background: #fff; padding: 40px; box-shadow: none; border: 1px solid #000; font-family: 'Malgun Gothic';">
+                <div style="white-space: pre-wrap; font-size: 15px; line-height: 1.8;">${formClone.innerHTML}</div>
+            </div>
+        `;
+
+        const payload = {
+            req_no: common.req_no,
+            project: common.project,
+            date: common.date,
+            html_content: finalHtml,
+            raw_data: {
+                extracted: currentExtractedData,
+                files: currentFileNames,
+                inputs: raw_inputs
+            }
+        };
+
+        try {
+            const response = await fetch('/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert('리포트가 성공적으로 저장되었습니다.');
+                location.reload(); 
+            } else {
+                alert('저장 실패: ' + result.message);
+            }
+        } catch (e) {
+            alert('저장 중 오류 발생');
+        }
+    };
+
+    window.viewReport = async function(id) {
+        const response = await fetch(`/report/${id}`);
+        const data = await response.json();
+        
+        const uploadSection = document.getElementById('upload-section-main');
+        const manualSection = document.getElementById('manual-input-section');
+        const reportList = document.getElementById('report-list-section');
+        const form = document.getElementById('manual-form');
+        const saveBtn = document.querySelector('.save-btn');
+        
+        uploadSection.style.display = 'none';
+        reportList.style.display = 'none';
+        manualSection.style.display = 'block';
+        manualSection.querySelector('h2').textContent = '저장된 보고서 보기';
+        
+        form.innerHTML = data.content;
+        saveBtn.style.display = 'none';
+        
+        // Buttons container
+        const btnContainer = document.createElement('div');
+        btnContainer.style.textAlign = 'center';
+        btnContainer.style.marginTop = '20px';
+
+        // Edit Button (if raw data exists)
+        if (data.raw_data) {
+            const editBtn = document.createElement('button');
+            editBtn.textContent = '수정하기';
+            editBtn.className = 'save-btn';
+            editBtn.style.display = 'inline-block';
+            editBtn.style.width = '150px';
+            editBtn.style.margin = '0 10px';
+            editBtn.onclick = () => {
+                displayManualInput(data.raw_data.extracted, data.raw_data.files);
+                // Fill in the inputs
+                document.getElementById('m-location').value = data.raw_data.inputs.location;
+                document.getElementById('m-tire-spec').value = data.raw_data.inputs.tire_spec;
+                document.getElementById('m-roadnoise').value = data.raw_data.inputs.roadnoise;
+                document.getElementById('m-patternnoise').value = data.raw_data.inputs.patternnoise;
+                document.getElementById('m-analysis').value = data.raw_data.inputs.analysis;
+                document.getElementById('m-summary-1').value = data.raw_data.inputs.summary_1;
+                document.getElementById('m-summary-2').value = data.raw_data.inputs.summary_2;
+                saveBtn.style.display = 'block';
+                manualSection.querySelector('h2').textContent = '보고서 수정';
+                btnContainer.remove();
+            };
+            btnContainer.appendChild(editBtn);
+        }
+
+        const backBtn = document.createElement('button');
+        backBtn.textContent = '메인으로 돌아가기';
+        backBtn.className = 'save-btn';
+        backBtn.style.display = 'inline-block';
+        backBtn.style.width = '200px';
+        backBtn.style.margin = '0 10px';
+        backBtn.style.background = '#2c3e50';
+        backBtn.onclick = () => location.reload();
+        btnContainer.appendChild(backBtn);
+        
+        manualSection.appendChild(btnContainer);
     };
 });
