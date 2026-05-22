@@ -55,33 +55,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Dynamic Row Addition Logic for Report Content ---
-    window.addDynamicRow = function(containerId, prefix) {
+    // --- Auto Dash Logic ---
+    window.handleAutoDash = function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            const value = e.target.value;
+            e.target.value = value.substring(0, start) + "\n- " + value.substring(end);
+            e.target.selectionStart = e.target.selectionEnd = start + 3;
+        }
+    };
+
+    // --- Dynamic Row Addition (Outside) ---
+    window.addDynamicRowOutside = function(containerId, prefix) {
         const container = document.getElementById(containerId);
         const div = document.createElement('div');
-        div.className = 'dynamic-row';
+        div.className = 'dynamic-row-item';
         div.style.display = 'flex';
         div.style.alignItems = 'center';
-        div.style.marginBottom = '5px';
         
         const index = container.children.length + 1;
         div.innerHTML = `
-            <span class="row-num" style="min-width: 30px;">${prefix}${index})</span>
-            <textarea class="input-area" style="flex: 1; margin: 0 5px;" rows="1"></textarea>
-            <button class="btn-plus" onclick="addDynamicRow('${containerId}', '${prefix}')">+</button>
-            <button class="btn-minus" onclick="this.parentElement.remove(); updateNumbers('${containerId}', '${prefix}')">-</button>
+            <span class="row-num" style="min-width: 35px;">${prefix}${index})</span>
+            <textarea class="input-area-dynamic" style="flex: 1; margin: 2px 0;" rows="1"></textarea>
+            <button class="btn-remove-small" onclick="this.parentElement.remove(); updateNumbersOutside('${containerId}', '${prefix}')" style="margin-left: 5px; background: #e74c3c; color: white; border: none; cursor: pointer;">×</button>
         `;
         container.appendChild(div);
     };
 
-    window.updateNumbers = function(containerId, prefix) {
+    window.updateNumbersOutside = function(containerId, prefix) {
         const container = document.getElementById(containerId);
         Array.from(container.children).forEach((child, i) => {
             child.querySelector('.row-num').textContent = `${prefix}${i + 1})`;
         });
     };
 
-    // --- Extraction and Rendering Logic ---
+    // --- Extraction Logic ---
     window.extractVPR = async function() {
         const inputs = document.querySelectorAll('input[type="file"]');
         const formData = new FormData();
@@ -145,8 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const common = data[0];
         const multiDay = data.length > 1;
         
+        // Setup initial structure with floating controls
         let html = `
-<div style="white-space: pre-wrap; line-height: 1.6;">
+<div class="edit-controls">
+    <button class="floating-btn" onclick="addExtraPlace()">2-4) 평가장소 추가</button>
+    <button class="floating-btn" onclick="addDynamicRowOutside('m-analysis-container', '-')">3-5) 구조민감도 추가</button>
+    <button class="floating-btn" onclick="addDynamicRowOutside('m-summary-container', '4-')">4. 요약 추가</button>
+</div>
+
+<div style="white-space: pre-wrap; line-height: 1.6; font-size: 14px;">
 ■ 의뢰자 정보 : ${common.client_info}
 
 1. Project : ${common.project}
@@ -158,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
     - Road Noise : <input type="text" class="input-field" id="m-place-road" value="@모형로 Rough Asphalt 10초(60kph, D drive)" style="width: 400px;">
     - Pattern Noise : <input type="text" class="input-field" id="m-place-pattern" value="@범용로 Smooth Asphalt 10초(80kph, D drive)" style="width: 400px;">
     <div id="extra-places-container"></div>
-    <button class="btn-plus" onclick="addExtraPlace()">+ 평가장소 추가</button>
 
   2-5) 평가 타이어
     2-5-1) Ref. : 사이즈(${common.tire_ref.size}), 패턴(${common.tire_ref.pattern}), 브랜드(${common.tire_ref.brand}), 마킹(${common.tire_ref.marking})
@@ -172,49 +188,36 @@ ${data.map(d => `   2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d
 3. Test Results
   3-1) 제조품질 성능검증결과
     <table class="result-table">
-        <thead>
+        <tr>
+            <th style="width: 25%;">Spec.</th>
+            <th style="width: 15%;">공진음 수준</th>
+            <th style="width: 15%;">진동 수준</th>
+            <th style="width: 25%;">비고 (발생속도 및 기타)</th>
+            <th rowspan="${(common.tire_sample.markings_list.length || 0) + 2}" class="note-cell">
+                ※ 제조품질 성능수준<br><br>
+                수준1 : 양호~경미 (거의 신경 쓰이지 않음)<br>
+                수준2 : 중간 (인지 수준이나, 불쾌감 적음)<br>
+                수준3 : 강함 (명확히 인지되며, 불쾌감 유발)
+            </th>
+        </tr>
+        <tr>
+            <td>Ref.</td>
+            <td>${qualitySelect()}</td>
+            <td>${qualitySelect()}</td>
+            <td><input type="text" value="-" style="width: 90%;"></td>
+        </tr>
+        ${(common.tire_sample.markings_list || []).map(m => `
             <tr>
-                <th>Spec.</th>
-                <th>공진음 수준</th>
-                <th>진동 수준</th>
-                <th>비고 (발생속도 및 기타)</th>
-                <th style="background: #f9f9f9; color: #666; font-size: 11px; font-weight: normal; text-align: left;">
-                    ※ 제조품질 성능수준<br>
-                    수준1 : 양호~경미 (거의 신경 쓰이지 않음)<br>
-                    수준2 : 중간 (인지 수준이나, 불쾌감 적음)<br>
-                    수준3 : 강함 (명확히 인지되며, 불쾌감 유발)
-                </th>
+                <td><input type="text" value="${m}" style="width: 90%;"></td>
+                <td>${qualitySelect()}</td>
+                <td>${qualitySelect()}</td>
+                <td><input type="text" value="-" style="width: 90%;"></td>
             </tr>
-        </thead>
-        <tbody id="m-quality-tbody">
-            ${(common.tire_sample.markings_list || []).map((m, idx) => `
-                <tr>
-                    <td><input type="text" value="${m}" class="input-field-small"></td>
-                    <td>
-                        <select class="input-select">
-                            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="input-select">
-                            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                        </select>
-                    </td>
-                    <td><input type="text" value="-" class="input-field-small"></td>
-                    ${idx === 0 ? `<td rowspan="${common.tire_sample.markings_list.length}"></td>` : ''}
-                </tr>
-            `).join('')}
-        </tbody>
+        `).join('')}
     </table>
 
   3-2) 로드노이즈 <span style="color: blue;">[Target : 부밍 ${targetSelect('m-target-booming')}dB(A), 캐비티 ${targetSelect('m-target-cavity')}dB(A), 럼블 ${targetSelect('m-target-rumble')}dB(A)]</span>
-    <div id="m-roadnoise-container">
-        <div class="dynamic-row" style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span class="row-num" style="min-width: 30px;">-</span>
-            <textarea class="input-area" style="flex: 1; margin: 0 5px;" rows="1"></textarea>
-            <button class="btn-plus" onclick="addDynamicRow('m-roadnoise-container', '-')">+</button>
-        </div>
-    </div>
+    - <textarea class="input-area" id="m-roadnoise-text" rows="2" onkeydown="handleAutoDash(event)">- </textarea>
 ${data.map(d => `
     ${multiDay ? `    3-2-${d.day}) Day${d.day}` : ''}
     <div class="chart-grid">
@@ -226,13 +229,7 @@ ${data.map(d => `
 `).join('\n')}
 
   3-3) 패턴노이즈 <span style="color: blue;">[Target : 패턴 ${targetSelect('m-target-pattern')}dB(A)]</span>
-    <div id="m-patternnoise-container">
-        <div class="dynamic-row" style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span class="row-num" style="min-width: 30px;">-</span>
-            <textarea class="input-area" style="flex: 1; margin: 0 5px;" rows="1"></textarea>
-            <button class="btn-plus" onclick="addDynamicRow('m-patternnoise-container', '-')">+</button>
-        </div>
-    </div>
+    - <textarea class="input-area" id="m-patternnoise-text" rows="2" onkeydown="handleAutoDash(event)">- </textarea>
 ${data.map(d => `
     ${multiDay ? `    3-3-${d.day}) Day${d.day}` : ''}
     <div class="chart-grid">
@@ -249,32 +246,23 @@ ${data.map(d => `
 `).join('\n')}
 
   3-5) 추가 분석 : 구조 민감도 정리
-    <div id="m-analysis-container">
-        <div class="dynamic-row" style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span class="row-num" style="min-width: 30px;">-</span>
-            <textarea class="input-area" style="flex: 1; margin: 0 5px;" rows="1"></textarea>
-            <button class="btn-plus" onclick="addDynamicRow('m-analysis-container', '-')">+</button>
-        </div>
-    </div>
+    <div id="m-analysis-container"></div>
 
   4. Test Summary
     <div id="m-summary-container">
-        <div class="dynamic-row" style="display: flex; align-items: center; margin-bottom: 5px;">
-            <span class="row-num" style="min-width: 30px;">4-1)</span>
-            <textarea class="input-area" style="flex: 1; margin: 0 5px;" rows="1"></textarea>
-            <button class="btn-plus" onclick="addDynamicRow('m-summary-container', '4-')">+</button>
+        <div class="dynamic-row-item" style="display: flex; align-items: center;">
+            <span class="row-num" style="min-width: 35px;">4-1)</span>
+            <textarea class="input-area-dynamic" style="flex: 1; margin: 2px 0;" rows="1"></textarea>
         </div>
     </div>
 
   5. 첨부
     5-1) NVH 실차평가 보고서 ---- ${data.length}개 파일
     <div id="m-attach-container"></div>
-    <button class="btn-plus" onclick="addDynamicRow('m-attach-container', '5-')">+ 첨부 추가</button>
 </div>
         `;
         form.innerHTML = html;
         
-        // Render charts after HTML is in DOM
         setTimeout(() => {
             data.forEach(d => {
                 if (d.spectrum_rr) {
@@ -293,8 +281,12 @@ ${data.map(d => `
         section.scrollIntoView({ behavior: 'smooth' });
     }
 
+    function qualitySelect() {
+        return `<select style="padding: 2px;"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>`;
+    }
+
     function targetSelect(id) {
-        return `<select class="input-select-inline" id="${id}">
+        return `<select style="border:none; color: blue; font-weight:bold;" id="${id}">
             <option value="-1">-1</option><option value="-0.5">-0.5</option>
             <option value="동등" selected>동등</option><option value="+0.5">+0.5</option><option value="+1">+1</option>
         </select>`;
@@ -303,11 +295,9 @@ ${data.map(d => `
     function renderReportTable(data) {
         if (!data || data.length === 0) return '';
         let html = '<table class="report-data-table">';
-        data.forEach((row, i) => {
+        data.forEach(row => {
             html += '<tr>';
-            row.forEach(cell => {
-                html += `<td>${cell !== null ? cell : ''}</td>`;
-            });
+            row.forEach(cell => html += `<td>${cell !== null ? cell : ''}</td>`);
             html += '</tr>';
         });
         html += '</table>';
@@ -317,44 +307,28 @@ ${data.map(d => `
     function renderChart(canvasId, title, specData) {
         const ctx = document.getElementById(canvasId);
         if (!ctx || !specData) return;
-        
         const datasets = Object.keys(specData.samples).map((sname, idx) => ({
             label: sname,
-            data: specData.freqs.map((f, i) => ({ x: f, y: 10 * Math.log10(specData.samples[sname][i] + 1e-12) })), // PSD to dB approx
+            data: specData.freqs.map((f, i) => ({ x: f, y: 10 * Math.log10(specData.samples[sname][i] + 1e-12) })),
             borderColor: `hsl(${idx * 70}, 70%, 50%)`,
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: false
+            borderWidth: 1.5, pointRadius: 0, fill: false
         }));
-
         const chart = new Chart(ctx, {
-            type: 'line',
-            data: { datasets },
+            type: 'line', data: { datasets },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 plugins: {
                     title: { display: true, text: title },
                     legend: {
-                        onClick: (e, legendItem, legend) => {
-                            const index = legendItem.datasetIndex;
-                            const ci = legend.chart;
-                            ci.data.datasets.forEach((ds, i) => {
-                                ds.borderWidth = (i === index) ? 3 : 1;
-                                ds.borderColor = (i === index) ? ds.borderColor.replace('50%', '30%') : ds.borderColor.replace('30%', '50%');
-                            });
-                            ci.update();
+                        onClick: (e, item, legend) => {
+                            const index = item.datasetIndex;
+                            legend.chart.data.datasets.forEach((ds, i) => ds.borderWidth = (i === index) ? 3 : 1);
+                            legend.chart.update();
                         }
                     },
-                    zoom: {
-                        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
-                        pan: { enabled: true, mode: 'xy' }
-                    }
+                    zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
                 },
-                scales: {
-                    x: { type: 'linear', title: { display: true, text: 'Frequency (Hz)' } },
-                    y: { title: { display: true, text: 'Level (dB)' } }
-                }
+                scales: { x: { type: 'linear' }, y: { type: 'linear' } }
             }
         });
         charts.push(chart);
@@ -363,40 +337,40 @@ ${data.map(d => `
     window.addExtraPlace = function() {
         const container = document.getElementById('extra-places-container');
         const div = document.createElement('div');
-        div.style.display = 'flex'; div.style.marginBottom = '5px';
+        div.className = 'dynamic-row-item';
+        div.style.display = 'flex'; div.style.marginBottom = '2px';
         div.innerHTML = `
             <span style="min-width: 120px;">- 평가장소 : 노면 :</span>
-            <input type="text" class="input-field" style="flex: 1; margin: 0 5px;">
-            <button class="btn-minus" onclick="this.parentElement.remove()">-</button>
+            <input type="text" class="input-field" style="flex: 1; border:none; border-bottom:1px solid #ccc;">
+            <button class="btn-remove-small" onclick="this.parentElement.remove()" style="background: #e74c3c; color: white; border: none; cursor: pointer;">×</button>
         `;
         container.appendChild(div);
     };
 
     window.saveFinal = async function() {
         if (!currentExtractedData) return;
-        // Generate final static HTML by replacing all inputs/buttons
         const formClone = document.getElementById('manual-form').cloneNode(true);
         
+        // Remove floating controls and internal buttons
+        formClone.querySelector('.edit-controls')?.remove();
+        formClone.querySelectorAll('button').forEach(b => b.remove());
+
         // Replace inputs/selects with spans
         formClone.querySelectorAll('input, textarea, select').forEach(el => {
             const span = document.createElement('span');
             span.textContent = el.value || (el.options ? el.options[el.selectedIndex].text : '-');
+            if (el.tagName === 'TEXTAREA') {
+                span.style.whiteSpace = 'pre-wrap';
+                span.style.display = 'block';
+            }
             span.style.fontWeight = 'bold';
-            span.style.textDecoration = 'underline';
             el.parentNode.replaceChild(span, el);
         });
 
-        // Remove all buttons
-        formClone.querySelectorAll('button').forEach(btn => btn.remove());
-
-        // For charts, we need to replace canvas with images or keep canvas if viewer supports JS
-        // Since we want a "plain html", we'll keep the canvas but need to ensure Chart.js is loaded in the final file too.
-        // Alternatively, we can convert canvas to img:
+        // Charts to images
         const canvases = document.querySelectorAll('canvas');
         const canvasImages = Array.from(canvases).map(c => c.toDataURL());
-        
-        const finalCanvases = formClone.querySelectorAll('canvas');
-        finalCanvases.forEach((c, i) => {
+        formClone.querySelectorAll('canvas').forEach((c, i) => {
             const img = document.createElement('img');
             img.src = canvasImages[i];
             img.style.width = '100%';
@@ -404,7 +378,7 @@ ${data.map(d => `
         });
 
         const finalHtml = `
-            <div class="paper-container" style="background: #fff; padding: 40px; box-shadow: none; border: 1px solid #000; font-family: 'Malgun Gothic';">
+            <div style="background: #fff; padding: 40px; border: 1px solid #000; font-family: 'Malgun Gothic'; width: 210mm; margin: 0 auto;">
                 <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${formClone.innerHTML}</div>
             </div>
         `;
@@ -423,8 +397,7 @@ ${data.map(d => `
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const result = await response.json();
-            if (result.status === 'success') {
+            if ((await response.json()).status === 'success') {
                 alert('리포트가 성공적으로 저장되었습니다.');
                 location.reload();
             }
@@ -436,40 +409,30 @@ ${data.map(d => `
         if (section.style.display === 'none') {
             const response = await fetch('/reports');
             const data = await response.json();
-            const tbody = document.getElementById('report-table-body');
-            tbody.innerHTML = data.map(r => `
+            document.getElementById('report-table-body').innerHTML = data.map(r => `
                 <tr>
                     <td style="padding: 10px; border: 1px solid #ccc;">${r.req_no}</td>
                     <td style="padding: 10px; border: 1px solid #ccc;">${r.project}</td>
                     <td style="padding: 10px; border: 1px solid #ccc;">${r.created_at}</td>
-                    <td style="padding: 10px; border: 1px solid #ccc;">
-                        <button onclick="viewReport(${r.id})">보기</button>
-                    </td>
+                    <td style="padding: 10px; border: 1px solid #ccc;"><button onclick="viewReport(${r.id})">보기</button></td>
                 </tr>
             `).join('');
             section.style.display = 'block';
-        } else {
-            section.style.display = 'none';
-        }
+        } else { section.style.display = 'none'; }
     };
 
     window.viewReport = async function(id) {
         const response = await fetch(`/report/${id}`);
         const data = await response.json();
-        const manualSection = document.getElementById('manual-input-section');
-        const form = document.getElementById('manual-form');
         document.getElementById('upload-section-main').style.display = 'none';
         document.getElementById('report-list-section').style.display = 'none';
-        manualSection.style.display = 'block';
-        form.innerHTML = data.content;
+        const ms = document.getElementById('manual-input-section');
+        ms.style.display = 'block';
+        document.getElementById('manual-form').innerHTML = data.content;
         document.querySelector('.save-btn').style.display = 'none';
-        
-        const backBtn = document.createElement('button');
-        backBtn.textContent = '메인으로 돌아가기';
-        backBtn.className = 'save-btn';
-        backBtn.style.display = 'block';
-        backBtn.style.background = '#2c3e50';
-        backBtn.onclick = () => location.reload();
-        manualSection.appendChild(backBtn);
+        const b = document.createElement('button');
+        b.textContent = '돌아가기'; b.className = 'save-btn'; b.style.background = '#2c3e50';
+        b.onclick = () => location.reload();
+        ms.appendChild(b);
     };
 });
