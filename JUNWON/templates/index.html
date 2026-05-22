@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">엑셀 파일을 분석 중입니다... 잠시만 기다려주세요.</div>
+    </div>
+    
     <div class="container">
         <h1>Excel to VPR Converter</h1>
         
@@ -26,22 +31,13 @@
         </div>
 
         <div id="manual-input-section">
-            <h2>수동 기입 및 최종 확인</h2>
-            <div id="manual-form">
-                <div class="input-group">
-                    <label>2-4) 평가 장소/노면:</label>
-                    <input type="text" id="m-location" placeholder="남양연구소 고속주회로">
+            <h2>보고서 초안 생성</h2>
+            <div class="paper-container">
+                <div id="manual-form">
+                    <!-- Dynamic content loaded here -->
                 </div>
-                <div class="input-group">
-                    <label>3-2) 로드노이즈 Comment:</label>
-                    <textarea id="m-roadnoise" rows="3"></textarea>
-                </div>
-                <div class="input-group">
-                    <label>3-3) 패턴노이즈 Comment:</label>
-                    <textarea id="m-patternnoise" rows="3"></textarea>
-                </div>
-                <button class="save-btn" onclick="saveFinal()">최종 HTML 파일로 변환 (저장)</button>
             </div>
+            <button class="save-btn" onclick="saveFinal()">최종 HTML 파일로 변환 (저장)</button>
         </div>
     </div>
 
