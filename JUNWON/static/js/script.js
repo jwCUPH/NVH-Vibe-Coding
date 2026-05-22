@@ -92,10 +92,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.querySelector('.btn-extract');
         const overlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
         
         btn.disabled = true;
         overlay.style.display = 'flex';
         loadingText.textContent = '분석 준비 중...';
+        progressBar.style.width = '0%';
+        progressPercent.textContent = '0%';
 
         try {
             const response = await fetch('/extract', {
@@ -120,6 +124,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const data = JSON.parse(line.substring(6));
                         if (data.status === 'progress') {
                             loadingText.textContent = data.message;
+                            if (data.percent !== undefined) {
+                                progressBar.style.width = data.percent + '%';
+                                progressPercent.textContent = data.percent + '%';
+                            }
                         } else if (data.status === 'success') {
                             displayManualInput(data.data);
                         } else if (data.status === 'error') {
@@ -132,7 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('통신 에러: ' + error.message);
         } finally {
             btn.disabled = false;
-            overlay.style.display = 'none';
+            // Delay closing slightly to show 100%
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 500);
         }
     };
 

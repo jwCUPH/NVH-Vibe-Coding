@@ -105,9 +105,16 @@ def extract_data():
 
     def generate():
         results = []
+        total_files = len(saved_files)
+        
         try:
+            yield f"data: {json.dumps({'status': 'progress', 'percent': 5, 'message': '분석 준비 중...'})}\n\n"
+            
             for i, (path, name) in enumerate(saved_files):
-                yield f"data: {json.dumps({'status': 'progress', 'message': f'Day {i+1} ({name}) 파싱 시작...'})}\n\n"
+                base_percent = 5 + (i / total_files) * 90
+                step_prefix = f"[{i+1}/{total_files} 단계]"
+                
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_percent), 'message': f'{step_prefix} {name} 파일 로드 중...'})}\n\n"
                 
                 wb = None
                 try:
@@ -115,7 +122,7 @@ def extract_data():
                     db = wb['DB'] if 'DB' in wb.sheetnames else None
                     
                     if db:
-                        yield f"data: {json.dumps({'status': 'progress', 'message': f'Day {i+1} 기본 정보 추출 중...'})}\n\n"
+                        yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_percent + (90/total_files)*0.5), 'message': f'{step_prefix} 데이터 추출 및 계산 중...'})}\n\n"
                         data = {
                             'day': i + 1,
                             'req_no': get_val(db, 'G2'),
@@ -132,9 +139,9 @@ def extract_data():
                             'temp_road': get_min_max(db, 'G40~Q40')
                         }
                         results.append(data)
-                        yield f"data: {json.dumps({'status': 'progress', 'message': f'Day {i+1} 분석 완료.'})}\n\n"
+                        yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_percent + (90/total_files)*0.9), 'message': f'{step_prefix} 분석 완료.'})}\n\n"
                 except Exception as e:
-                    yield f"data: {json.dumps({'status': 'progress', 'message': f'Day {i+1} 에러: {str(e)}'})}\n\n"
+                    yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_percent + (90/total_files)), 'message': f'{step_prefix} 에러 발생: {str(e)}'})}\n\n"
                 finally:
                     if wb: wb.close()
                     try: os.remove(path)
@@ -143,6 +150,7 @@ def extract_data():
             if not results:
                 yield f"data: {json.dumps({'status': 'error', 'message': '파싱 가능한 데이터가 없습니다.'})}\n\n"
             else:
+                yield f"data: {json.dumps({'status': 'progress', 'percent': 100, 'message': '모든 파일 분석 완료!'})}\n\n"
                 yield f"data: {json.dumps({'status': 'success', 'data': results})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"

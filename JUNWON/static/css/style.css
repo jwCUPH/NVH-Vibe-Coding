@@ -118,6 +118,29 @@ button {
     font-size: 1.2em;
     font-weight: bold;
     color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+.progress-container {
+    width: 300px;
+    height: 20px;
+    background-color: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #bdc3c7;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    transition: width 0.3s ease-in-out;
+}
+
+#progress-percent {
+    margin-top: 10px;
+    font-weight: bold;
+    color: #34495e;
 }
 
 #manual-input-section {
