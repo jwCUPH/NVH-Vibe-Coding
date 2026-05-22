@@ -77,6 +77,46 @@ def get_unique_vals(sheet, range_str):
     unique = list(dict.fromkeys(vals))
     return ", ".join(unique) if unique else "N/A"
 
+def get_table_data(sheet, start_coord, end_coord):
+    sr, sc = excel_coord_to_indices(start_coord)
+    er, ec = excel_coord_to_indices(end_coord)
+    data = []
+    for r in range(sr, er + 1):
+        row = [sheet.cell(row=r, column=c).value for c in range(sc, ec + 1)]
+        if any(v is not None for v in row):
+            data.append(row)
+    return data
+
+def get_spectrum_data(sheet, cols_groups):
+    # cols_groups: list of column indices like [1, 15, 29, 43]
+    # frequency is in column 1
+    # samples are in cols [g+1, g+2, g+3, g+4, g+5]
+    data = {}
+    for g in cols_groups:
+        cat_name = sheet.cell(row=1, column=g).value
+        if not cat_name: continue
+        
+        # Get sample names from row 2
+        samples = []
+        for c in range(g + 1, g + 6):
+            sname = sheet.cell(row=2, column=c).value
+            if sname: samples.append({'name': sname, 'col': c})
+        
+        freqs = []
+        values = {s['name']: [] for s in samples}
+        
+        # Read up to 4000Hz (row ~2001 if start at 0Hz, 2Hz step)
+        for r in range(3, 2004):
+            f = sheet.cell(row=r, column=1).value
+            if f is None: break
+            freqs.append(f)
+            for s in samples:
+                val = sheet.cell(row=r, column=s['col']).value
+                values[s['name']].append(val if val is not None else 0)
+        
+        data[cat_name] = {'freqs': freqs, 'samples': values}
+    return data
+
 @app.route('/extract', methods=['POST'])
 def extract_data():
     files = request.files.getlist('files')
@@ -98,18 +138,50 @@ def extract_data():
                 
                 wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
                 db_s = wb['DB'] if 'DB' in wb.sheetnames else None
+                rep_s = wb['Report'] if 'Report' in wb.sheetnames else None
+                rr_s = wb['RR'] if 'RR' in wb.sheetnames else None
+                sr_s = wb['SR'] if 'SR' in wb.sheetnames else None
+
+                day_data = {'day': i+1}
                 if db_s:
-                    res.append({
-                        'day': i+1, 'client_info': get_val(db_s, 'G4'), 'project': get_val(db_s, 'G3'),
-                        'req_no': get_val(db_s, 'G2'), 'date': get_val(db_s, 'F15'), 'testers': f"{get_val(db_s, 'G13')}, {get_val(db_s, 'G14')}",
-                        'vehicle': f"{get_val(db_s, 'G22')} {get_val(db_s, 'G23')}",
+                    g22_val = get_val(db_s, 'G22')
+                    g17_val = get_val(db_s, 'G17')
+                    wheel_size_match = re.search(r'R(\d{2})', g22_val + g17_val)
+                    wheel_size = wheel_size_match.group(1) if wheel_size_match else ""
+                    
+                    day_data.update({
+                        'client_info': get_val(db_s, 'G7'), 'project': get_val(db_s, 'G3'),
+                        'req_no': get_val(db_s, 'G4'), 'date': get_val(db_s, 'F15'), 
+                        'testers': f"{get_val(db_s, 'G13')}, {get_val(db_s, 'G14')}",
+                        'vehicle': f"{get_val(db_s, 'G22')}, {get_val(db_s, 'G23')}",
                         'tire_ref': {'size': get_val(db_s, 'G17'), 'pattern': get_val(db_s, 'G18'), 'brand': get_val(db_s, 'G19'), 'marking': get_val(db_s, 'G20')},
-                        'tire_sample': {'size': get_unique_vals(db_s, 'H17~Q17'), 'pattern': get_unique_vals(db_s, 'H18~Q18'), 'brand': get_unique_vals(db_s, 'H19~Q19'), 'marking': get_unique_vals(db_s, 'H20~Q20')},
+                        'tire_sample': {
+                            'size': get_unique_vals(db_s, 'H17~Q17'), 
+                            'pattern': get_unique_vals(db_s, 'H18~Q18'), 
+                            'brand': get_unique_vals(db_s, 'H19~Q19'), 
+                            'marking': get_unique_vals(db_s, 'H20~Q20'),
+                            'markings_list': [v for c in range(8, 18) if (v := db_s.cell(row=20, column=c).value) is not None]
+                        },
+                        'pressure': f"전륜 {get_val(db_s, 'G30')}{get_val(db_s, 'G32')}/{get_val(db_s, 'G33')}Jx{wheel_size}, 후륜-{get_val(db_s, 'G31')}{get_val(db_s, 'G32')}/,{get_val(db_s, 'G34')}Jx{wheel_size}",
                         'temp_air': get_min_max(db_s, 'G39~Q39'), 'temp_road': get_min_max(db_s, 'G40~Q40')
                     })
+                
+                if rep_s:
+                    day_data['table_3_4_1'] = get_table_data(rep_s, 'B22', 'O36')
+                    day_data['table_3_4_2'] = get_table_data(rep_s, 'B38', 'O52')
+                
+                if rr_s:
+                    day_data['spectrum_rr'] = get_spectrum_data(rr_s, [1, 15, 29, 43])
+                if sr_s:
+                    day_data['spectrum_sr'] = get_spectrum_data(sr_s, [1, 15, 29, 43])
+
+                res.append(day_data)
                 wb.close(); os.remove(path)
             yield f"data: {json.dumps({'status': 'success', 'data': res, 'file_names': [f[1] for f in saved_files]})}\n\n"
-        except Exception as e: yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+        except Exception as e: 
+            import traceback
+            print(traceback.format_exc())
+            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
     return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/save', methods=['POST'])
