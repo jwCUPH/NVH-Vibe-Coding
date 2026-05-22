@@ -95,17 +95,21 @@ class VINAutomationApp(ctk.CTk):
             self.log(f"Attempting to connect to '{prog_id}'...")
             self.app_com = win32com.client.Dispatch(prog_id)
             
-            # Database 핸들 확보 로직
+            # Database 핸들 확보 로직 (호출 가능 여부 체크 포함)
             db_candidate = None
             try:
                 book = self.app_com.ActiveBook
-                if book: db_candidate = book.Database
+                if book:
+                    db_candidate = book.Database
+                    if callable(db_candidate): db_candidate = db_candidate()
             except: pass
 
             if db_candidate is None:
                 try:
                     proj = self.app_com.ActiveProject
-                    if proj: db_candidate = proj.Database
+                    if proj:
+                        db_candidate = proj.Database
+                        if callable(db_candidate): db_candidate = db_candidate()
                 except: pass
 
             if db_candidate is None:
