@@ -23,7 +23,7 @@ class VPRReport(db.Model):
     project = db.Column(db.String(200))
     date = db.Column(db.String(50))
     content_html = db.Column(db.Text)
-    raw_data = db.Column(db.Text) 
+    raw_data = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
@@ -96,7 +96,7 @@ def extract_data():
                 step = f"[{i+1}/{total}]"
                 yield f"data: {json.dumps({'status': 'progress', 'percent': int(pct), 'message': f'{step} {name} 분석 중...'})}\n\n"
                 
-                wb = openpyxl.load_workbook(path, data_only=True)
+                wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
                 db_s = wb['DB'] if 'DB' in wb.sheetnames else None
                 if db_s:
                     res.append({

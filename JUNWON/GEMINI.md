@@ -19,7 +19,8 @@
 3. **데이터 매핑**: `Example_Plain txt.txt`의 양식을 100% 준수해야 하며, UNIQUE 정보 추출(H17~Q20 범위) 및 온도 통계 계산 로직이 포함되어 있음.
 4. **DB 저장**: `VPRReport` 모델은 최종 HTML뿐만 아니라 재편집을 위해 `raw_data`(JSON) 필드를 반드시 포함해야 함.
 5. **로그 정리**: `openpyxl` 라이브러리의 `DrawingML` 관련 `UserWarning`은 데이터 추출에 영향을 주지 않으므로 `warnings` 모듈을 사용해 무시(suppress) 처리함.
-6. **UI 렌더링 주의**: DOM 조작 시(예: 업로드 영역 숨김 처리) 대상 DOM(`manual-input-section`)이 부모 요소(`upload-section-main`) 내부에 잘못 중첩(nesting)되어 함께 숨겨지지 않도록 HTML 구조의 완전한 분리를 유지할 것.
+6. **UI 렌더링 주의**: 엑셀 파싱 이후 사용자가 다른 파일을 추가로 업로드할 수 있도록, 파일 업로드 영역(`upload-section-main`)을 숨김 처리(`display: none`)하지 않고 유지해야 함.
+7. **엑셀 파싱 최적화**: 엑셀 데이터 추출 시 성능 저하(오랜 로딩 시간)를 방지하기 위해 `openpyxl.load_workbook()` 호출 시 반드시 `read_only=True` 옵션을 추가하여 메모리 사용량과 로딩 시간을 최소화해야 함.
 
 ## 실행 방법
 1. `pip install flask pandas openpyxl flask-sqlalchemy` 설치

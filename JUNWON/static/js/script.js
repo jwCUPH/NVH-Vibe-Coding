@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const uploadSection = document.getElementById('upload-section-main');
         
         section.style.display = 'block';
-        uploadSection.style.display = 'none'; // Hide upload while editing
+        // uploadSection.style.display = 'none'; // Modified: Do not hide upload section
         
         const common = data[0]; 
         
