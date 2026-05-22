@@ -55,8 +55,11 @@ def excel_coord_to_indices(coord):
 def get_val(sheet, coord):
     r, c = excel_coord_to_indices(coord)
     if not r: return ""
-    v = sheet.cell(row=r, column=c).value
-    return str(v) if v is not None else ""
+    # Use iter_rows for faster access in read_only mode even for single cell
+    for row in sheet.iter_rows(min_row=r, max_row=r, min_col=c, max_col=c, values_only=True):
+        v = row[0]
+        return str(v) if v is not None else ""
+    return ""
 
 def get_min_max(sheet, range_str):
     match = re.match(r"([A-Z]+)([0-9]+)~([A-Z]+)([0-9]+)", range_str)
@@ -64,7 +67,10 @@ def get_min_max(sheet, range_str):
     sc_s, sr, ec_s, er = match.groups()
     _, sc = excel_coord_to_indices(sc_s + sr)
     _, ec = excel_coord_to_indices(ec_s + er)
-    vals = [v for c in range(sc, ec + 1) if isinstance(v := sheet.cell(row=int(sr), column=c).value, (int, float))]
+    
+    vals = []
+    for row in sheet.iter_rows(min_row=int(sr), max_row=int(sr), min_col=sc, max_col=ec, values_only=True):
+        vals = [v for v in row if isinstance(v, (int, float))]
     return f"{min(vals)}~{max(vals)}" if vals else "N/A"
 
 def get_unique_vals(sheet, range_str):
@@ -73,7 +79,10 @@ def get_unique_vals(sheet, range_str):
     sc_s, sr, ec_s, er = match.groups()
     _, sc = excel_coord_to_indices(sc_s + sr)
     _, ec = excel_coord_to_indices(ec_s + er)
-    vals = [str(v).strip() for c in range(sc, ec + 1) if (v := sheet.cell(row=int(sr), column=c).value) is not None]
+    
+    vals = []
+    for row in sheet.iter_rows(min_row=int(sr), max_row=int(sr), min_col=sc, max_col=ec, values_only=True):
+        vals = [str(v).strip() for v in row if v is not None]
     unique = list(dict.fromkeys(vals))
     return ", ".join(unique) if unique else "N/A"
 
@@ -81,37 +90,43 @@ def get_table_data(sheet, start_coord, end_coord):
     sr, sc = excel_coord_to_indices(start_coord)
     er, ec = excel_coord_to_indices(end_coord)
     data = []
-    for r in range(sr, er + 1):
-        row = [sheet.cell(row=r, column=c).value for c in range(sc, ec + 1)]
+    for row in sheet.iter_rows(min_row=sr, max_row=er, min_col=sc, max_col=ec, values_only=True):
         if any(v is not None for v in row):
-            data.append(row)
+            data.append(list(row))
     return data
 
 def get_spectrum_data(sheet, cols_groups):
     # cols_groups: list of column indices like [1, 15, 29, 43]
     # frequency is in column 1
     # samples are in cols [g+1, g+2, g+3, g+4, g+5]
+    
+    # Pre-fetch all needed data in one go (up to 4000Hz, max col 50ish)
+    all_data = list(sheet.iter_rows(min_row=1, max_row=2003, min_col=1, max_col=50, values_only=True))
+    if not all_data: return {}
+
+    row1 = all_data[0]
+    row2 = all_data[1]
+    
     data = {}
     for g in cols_groups:
-        cat_name = sheet.cell(row=1, column=g).value
+        cat_name = row1[g-1]
         if not cat_name: continue
         
-        # Get sample names from row 2
         samples = []
         for c in range(g + 1, g + 6):
-            sname = sheet.cell(row=2, column=c).value
-            if sname: samples.append({'name': sname, 'col': c})
+            sname = row2[c-1]
+            if sname: samples.append({'name': sname, 'col_idx': c-1})
         
         freqs = []
         values = {s['name']: [] for s in samples}
         
-        # Read up to 4000Hz (row ~2001 if start at 0Hz, 2Hz step)
-        for r in range(3, 2004):
-            f = sheet.cell(row=r, column=1).value
+        for r_idx in range(2, len(all_data)):
+            row = all_data[r_idx]
+            f = row[0]
             if f is None: break
             freqs.append(f)
             for s in samples:
-                val = sheet.cell(row=r, column=s['col']).value
+                val = row[s['col_idx']]
                 values[s['name']].append(val if val is not None else 0)
         
         data[cat_name] = {'freqs': freqs, 'samples': values}
@@ -149,6 +164,11 @@ def extract_data():
                     wheel_size_match = re.search(r'R(\d{2})', g22_val + g17_val)
                     wheel_size = wheel_size_match.group(1) if wheel_size_match else ""
                     
+                    # Extract markings list using iter_rows
+                    markings = []
+                    for row in db_s.iter_rows(min_row=20, max_row=20, min_col=8, max_col=17, values_only=True):
+                        markings = [v for v in row if v is not None]
+                    
                     day_data.update({
                         'client_info': get_val(db_s, 'G7'), 'project': get_val(db_s, 'G3'),
                         'req_no': get_val(db_s, 'G4'), 'date': get_val(db_s, 'F15'), 
@@ -160,7 +180,7 @@ def extract_data():
                             'pattern': get_unique_vals(db_s, 'H18~Q18'), 
                             'brand': get_unique_vals(db_s, 'H19~Q19'), 
                             'marking': get_unique_vals(db_s, 'H20~Q20'),
-                            'markings_list': [v for c in range(8, 18) if (v := db_s.cell(row=20, column=c).value) is not None]
+                            'markings_list': markings
                         },
                         'pressure': f"전륜 {get_val(db_s, 'G30')}{get_val(db_s, 'G32')}/{get_val(db_s, 'G33')}Jx{wheel_size}, 후륜-{get_val(db_s, 'G31')}{get_val(db_s, 'G32')}/,{get_val(db_s, 'G34')}Jx{wheel_size}",
                         'temp_air': get_min_max(db_s, 'G39~Q39'), 'temp_road': get_min_max(db_s, 'G40~Q40')
