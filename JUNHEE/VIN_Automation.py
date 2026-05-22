@@ -89,152 +89,169 @@ class VINAutomationApp(ctk.CTk):
         self.log_textbox.see("end")
 
     def connect_testlab(self):
-        """Testlab 연결 및 ActiveBook 섹션 접근 최적화"""
+        """Testlab 연결 및 Database 핸들 확보 (Automation_260223.py 방식)"""
         prog_id = "LMSTestLabAutomation.Application"
         try:
-            self.log(f"Attempting to dispatch '{prog_id}'...")
-            # Dispatch로 고정하여 이미 실행 중인 인스턴스에 연결
+            self.log(f"Attempting to connect to '{prog_id}'...")
             self.app_com = win32com.client.Dispatch(prog_id)
-            self.log("Successfully dispatched LMSTestLabAutomation.Application.")
-
-            # ActiveBook 확인
+            
+            # Database 핸들 확보 로직
+            db_candidate = None
             try:
-                self.project = self.app_com.ActiveBook
-            except Exception:
-                self.project = None
+                book = self.app_com.ActiveBook
+                if book: db_candidate = book.Database
+            except: pass
 
-            if self.project is None:
-                self.log("Error: No Active Project found in Testlab.")
-                self.lbl_status.configure(text="Status: Connected (No Project)", text_color="orange")
-                messagebox.showerror("Project Error", "Testlab에 활성화된 프로젝트(.lms)가 없습니다.\n프로젝트를 먼저 열어주세요.")
-                return
-
-            # 프로젝트 이름 가져오기 시도 (여러 속성 시도)
-            project_name = "Unknown"
-            try:
-                # 1. Name 속성 시도
-                project_name = self.project.Name
-            except Exception:
+            if db_candidate is None:
                 try:
-                    # 2. 파일 경로에서 이름 추출 시도
-                    full_path = self.project.FullName
-                    project_name = os.path.basename(full_path)
-                except Exception:
-                    project_name = "Connected Project"
+                    proj = self.app_com.ActiveProject
+                    if proj: db_candidate = proj.Database
+                except: pass
 
-            self.lbl_status.configure(text=f"Status: Connected ({project_name})", text_color="lightgreen")
-            self.log(f"Active Project identified: {project_name}")
+            if db_candidate is None:
+                raise RuntimeError("Database 핸들을 찾지 못했습니다. 프로젝트가 열려 있는지 확인하세요.")
+
+            self.db = db_candidate
+            self.log("Successfully connected to Testlab Database.")
+
+            # 프로젝트명 표시
+            try:
+                name = self.app_com.ActiveBook.Name
+            except:
+                name = "Active Project"
+            self.lbl_status.configure(text=f"Status: Connected ({name})", text_color="lightgreen")
             
             self.update_sections()
             self.btn_extract.configure(state="normal")
                 
         except Exception as e:
-            error_details = str(e)
-            self.log(f"Connection failed: {error_details}")
+            self.log(f"Connection failed: {str(e)}")
             self.lbl_status.configure(text="Status: Error", text_color="red")
-            messagebox.showerror("Connection Error", f"Failed to connect:\n{error_details}")
+            messagebox.showerror("Connection Error", f"Failed to connect:\n{str(e)}")
+
+    def to_string_list(self, maybe_list):
+        """COM 리스트 객체를 Python 문자열 리스트로 변환"""
+        if maybe_list is None: return []
+        try:
+            return [str(x) for x in list(maybe_list)]
+        except:
+            try:
+                out = []
+                n = int(maybe_list.Count)
+                for i in range(1, n + 1):
+                    out.append(str(maybe_list.Item(i)))
+                return out
+            except:
+                return []
 
     def update_sections(self):
+        """db.SectionNames를 사용하여 섹션 목록을 가져옵니다."""
         try:
-            # Sections 컬렉션 접근
-            sections_obj = self.project.Sections
-            count = sections_obj.Count
-            self.log(f"Found {count} sections in project.")
+            self.log("Loading section names from Database...")
+            # Automation_260223.py 방식: db.SectionNames 사용
+            sections = self.to_string_list(self.db.SectionNames)
             
-            if count == 0:
-                self.log("Warning: Project contains 0 sections.")
-                self.combo_section.configure(values=["No sections found"])
-                return
+            if not sections:
+                self.log("Warning: No sections found via db.SectionNames.")
+                # 폴백
+                try:
+                    active = self.app_com.ActiveBook.ActiveSectionName
+                    if active: sections = [active]
+                except: pass
 
-            section_names = []
-            for i in range(1, count + 1):
-                section_names.append(sections_obj.Item(i).Name)
-            
-            self.combo_section.configure(values=section_names)
-            self.combo_section.set(section_names[0])
-            self.log(f"Sections loaded: {section_names}")
-            self.on_section_selected(section_names[0])
+            if not sections:
+                raise AttributeError("섹션 정보를 가져올 수 없습니다.")
+
+            self.combo_section.configure(values=sections)
+            self.combo_section.set(sections[0])
+            self.on_section_selected(sections[0])
+            self.log(f"Successfully loaded {len(sections)} sections.")
             
         except Exception as e:
-            self.log(f"Failed to load sections: {str(e)}")
-            # 상세 디버깅 정보 로그
-            import traceback
-            self.log(traceback.format_exc())
+            self.log(f"Section Loading Failed: {str(e)}")
 
     def on_section_selected(self, section_name):
+        """db.ElementNames 및 db.ElementType을 사용하여 Run 목록을 가져옵니다."""
         try:
-            section = self.project.Sections.Item(section_name)
-            runs_obj = section.Runs
-            count = runs_obj.Count
-            
             run_names = []
-            for i in range(1, count + 1):
-                run_names.append(runs_obj.Item(i).Name)
-            
-            self.combo_run.configure(values=run_names)
+            self.log(f"Loading runs for section: {section_name}")
+
+            # Automation_260223.py 방식: ElementNames 가져온 후 ElementType으로 필터링
+            elements = self.to_string_list(self.db.ElementNames(section_name))
+            for item in elements:
+                try:
+                    path = f"{section_name}/{item}"
+                    if str(self.db.ElementType(path)) == "Run":
+                        run_names.append(item)
+                except:
+                    continue
+
+            if not run_names:
+                # 폴백: ActiveRunName
+                try:
+                    active_run = self.app_com.ActiveBook.ActiveRunName
+                    if active_run: run_names = [active_run]
+                except: pass
+
             if run_names:
+                run_names = sorted(list(set(run_names)))
+                self.combo_run.configure(values=run_names)
                 self.combo_run.set(run_names[0])
-            self.log(f"Runs loaded for '{section_name}': {run_names}")
+                self.log(f"Successfully loaded {len(run_names)} runs.")
+            else:
+                self.combo_run.configure(values=["No runs found"])
+
         except Exception as e:
-            self.log(f"Failed to load runs: {str(e)}")
+            self.log(f"Run Loading Error: {str(e)}")
 
     def extract_data(self):
+        """db.GetItem 및 IBlock2를 사용하여 데이터를 추출합니다."""
         section_name = self.combo_section.get()
         run_name = self.combo_run.get()
         
-        # 추출 대상 채널 리스트
-        channels = [
-            "AutoPower FLW (A)",
-            "AutoPower FLI (A)",
-            "AutoPower RCC (A)",
-            "AutoPower RRW (A)"
-        ]
-        
-        # 데이터 저장용 딕셔너리 (Key: 채널명, Value: 데이터 리스트)
+        channels = ["AutoPower FLW (A)", "AutoPower FLI (A)", "AutoPower RCC (A)", "AutoPower RRW (A)"]
         extracted_results = {}
         frequencies = None
 
-        # 기본 경로 구성
         target_sub_path = "Fixed sampling/Stationary Free run/Sections/Map statistics/Spectrum averaged"
-        
-        self.log(f"Starting extraction for Section: {section_name}, Run: {run_name}")
+        self.log(f"Extracting data from {section_name}/{run_name}...")
         
         try:
             for channel in channels:
-                # 전체 데이터 경로 생성
-                # {Section}/{Run}/{SubPath}/{ChannelName}
-                full_data_path = f"{section_name}/{run_name}/{target_sub_path}/{channel}"
+                full_path = f"{section_name}/{run_name}/{target_sub_path}/{channel}"
                 
                 try:
-                    # Testlab COM을 통한 데이터 접근
-                    data_item = self.app_com.GetDataItem(full_data_path)
-                    
-                    if data_item:
-                        # 주파수 축(X축) 데이터 가져오기 (첫 채널에서만 1회 수행)
-                        if frequencies is None:
-                            x_values = data_item.XValues
-                            frequencies = [x_values.Value(i) for i in range(1, x_values.Count + 1)]
-                        
-                        # 진폭(Y축) 데이터 가져오기
-                        y_values = data_item.YValues
-                        amplitudes = [y_values.Value(i) for i in range(1, y_values.Count + 1)]
-                        
-                        extracted_results[channel] = amplitudes
-                        self.log(f"Successfully extracted: {channel}")
+                    # Automation_260223.py 방식: db.GetItem 사용
+                    obj = self.db.GetItem(full_path)
+                    if obj:
+                        # IBlock2 인터페이스로 캐스팅 (win32com.client가 자동으로 처리하지 못할 경우 대비)
+                        try:
+                            # 1. X축 데이터 (주파수)
+                            if frequencies is None:
+                                x_vals = obj.XValues
+                                frequencies = [x_vals.Value(i) for i in range(1, x_vals.Count + 1)]
+                            
+                            # 2. Y축 데이터 (진폭)
+                            y_vals = obj.YValues
+                            amplitudes = [y_vals.Value(i) for i in range(1, y_vals.Count + 1)]
+                            
+                            extracted_results[channel] = amplitudes
+                            self.log(f"Extracted: {channel}")
+                        except Exception as de:
+                            self.log(f"Block access failed for {channel}: {de}")
                     else:
-                        self.log(f"Warning: Data item not found for {channel}")
+                        self.log(f"Item not found: {channel}")
                 except Exception as e:
-                    self.log(f"Failed to extract {channel}: {str(e)}")
+                    self.log(f"Error accessing {channel}: {e}")
 
             if not extracted_results:
-                messagebox.showwarning("Warning", "No data was extracted. Please check the paths.")
+                messagebox.showwarning("Warning", "추출된 데이터가 없습니다. 경로를 확인하세요.")
                 return
 
-            # CSV 파일 저장 (바탕화면)
             self.save_to_csv(frequencies, extracted_results, section_name, run_name)
 
         except Exception as e:
-            self.log(f"Critical error during extraction: {e}")
+            self.log(f"Extraction critical error: {e}")
             messagebox.showerror("Error", f"Extraction failed:\n{e}")
 
     def save_to_csv(self, frequencies, results, section, run):
