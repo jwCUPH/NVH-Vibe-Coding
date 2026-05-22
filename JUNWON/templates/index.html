@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel to VPR Converter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">엑셀 파일을 분석 중입니다... 잠시만 기다려주세요.</div>
+        <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div id="progress-percent">0%</div>
+    </div>
+    
+    <div class="container">
+        <h1>Excel to VPR Converter</h1>
+        
+        <div class="upload-section">
+            <div id="upload-container">
+                <div class="upload-row" id="row-1">
+                    <span class="day-label">Day 1</span>
+                    <input type="file" name="file-1" onchange="validateFile(1)">
+                    <span class="status" id="status-1"></span>
+                    <div class="controls">
+                        <button class="btn-plus" onclick="addRow(this)">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-extract" onclick="extractVPR()">Excel - VPR 추출</button>
+        </div>
+
+        <div id="manual-input-section">
+            <h2>보고서 초안 생성</h2>
+            <div class="paper-container">
+                <div id="manual-form">
+                    <!-- Dynamic content loaded here -->
+                </div>
+            </div>
+            <button class="save-btn" onclick="saveFinal()">최종 HTML 파일로 변환 (저장)</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
