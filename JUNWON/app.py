@@ -92,6 +92,7 @@ def get_table_data(sheet, start_coord, end_coord):
     data = []
     for row in sheet.iter_rows(min_row=sr, max_row=er, min_col=sc, max_col=ec, values_only=True):
         if any(v is not None for v in row):
+            # Keep raw values (int/float) for delta calculation in frontend
             data.append(list(row))
     return data
 

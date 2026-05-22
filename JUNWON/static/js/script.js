@@ -55,15 +55,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Auto Dash Logic ---
+    // --- Auto Dash Logic for Content Editable ---
     window.handleAutoDash = function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const start = e.target.selectionStart;
-            const end = e.target.selectionEnd;
-            const value = e.target.value;
-            e.target.value = value.substring(0, start) + "\n- " + value.substring(end);
-            e.target.selectionStart = e.target.selectionEnd = start + 3;
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            
+            const br = document.createElement('br');
+            const textNode = document.createTextNode('- ');
+            
+            range.deleteContents();
+            range.insertNode(br);
+            range.setStartAfter(br);
+            range.setEndAfter(br);
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+            range.setEndAfter(textNode);
+            
+            selection.removeAllRanges();
+            selection.addRange(range);
         }
     };
 
@@ -72,14 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById(containerId);
         const div = document.createElement('div');
         div.className = 'dynamic-row-item';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
+        div.style.marginBottom = '2px';
         
         const index = container.children.length + 1;
         div.innerHTML = `
-            <span class="row-num" style="min-width: 35px;">${prefix}${index})</span>
-            <textarea class="input-area-dynamic" style="flex: 1; margin: 2px 0;" rows="1"></textarea>
-            <button class="btn-remove-small" onclick="this.parentElement.remove(); updateNumbersOutside('${containerId}', '${prefix}')" style="margin-left: 5px; background: #e74c3c; color: white; border: none; cursor: pointer;">×</button>
+            <span class="row-num" style="display:inline-block; min-width: 35px;">&nbsp; ${prefix}${index})</span>
+            <span class="editable-text" contenteditable="true" style="min-width: 300px;"></span>
+            <button class="btn-remove-small" onclick="this.parentElement.remove(); updateNumbersOutside('${containerId}', '${prefix}')" style="margin-left: 5px; background: #e74c3c; color: white; border: none; cursor: pointer; padding: 2px 5px; font-size: 10px;">×</button>
         `;
         container.appendChild(div);
     };
@@ -87,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.updateNumbersOutside = function(containerId, prefix) {
         const container = document.getElementById(containerId);
         Array.from(container.children).forEach((child, i) => {
-            child.querySelector('.row-num').textContent = `${prefix}${i + 1})`;
+            child.querySelector('.row-num').innerHTML = `&nbsp; ${prefix}${i + 1})`;
         });
     };
 
@@ -155,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const common = data[0];
         const multiDay = data.length > 1;
         
-        // Setup initial structure with floating controls
         let html = `
 <div class="edit-controls">
     <button class="floating-btn" onclick="addExtraPlace()">2-4) 평가장소 추가</button>
@@ -163,30 +172,34 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="floating-btn" onclick="addDynamicRowOutside('m-summary-container', '4-')">4. 요약 추가</button>
 </div>
 
-<div style="white-space: pre-wrap; line-height: 1.6; font-size: 14px;">
-■ 의뢰자 정보 : ${common.client_info}
-
-1. Project : ${common.project}
-2. Tire & Test Information
-  2-1) 의뢰 번호 : ${common.req_no}
-  2-2) 평가 일자 : ${common.date}
-  2-3) 평가자 : ${common.testers}
-  2-4) 평가 장소/노면 :
-    - Road Noise : <input type="text" class="input-field" id="m-place-road" value="@모형로 Rough Asphalt 10초(60kph, D drive)" style="width: 400px;">
-    - Pattern Noise : <input type="text" class="input-field" id="m-place-pattern" value="@범용로 Smooth Asphalt 10초(80kph, D drive)" style="width: 400px;">
+<div>
+<p><b>■ 의뢰자 정보 :</b> ${common.client_info}</p>
+<p><br></p>
+<p><b>1. Project</b> : ${common.project}</p>
+<p><br></p>
+<p><b>2. Tire & Test Information</b></p>
+<p>&nbsp; 2-1) 의뢰 번호 : ${common.req_no}</p>
+<p>&nbsp; 2-2) 평가 일자 : ${common.date}</p>
+<p>&nbsp; 2-3) 평가자 : ${common.testers}</p>
+<p>&nbsp; 2-4) 평가 장소/노면 :</p>
+<div style="padding-left: 20px;">
+    <p>- Road Noise : <span class="editable-text" contenteditable="true" style="min-width: 300px;">@모형로 Rough Asphalt 10초(60kph, D drive)</span></p>
+    <p>- Pattern Noise : <span class="editable-text" contenteditable="true" style="min-width: 300px;">@범용로 Smooth Asphalt 10초(80kph, D drive)</span></p>
     <div id="extra-places-container"></div>
+</div>
 
-  2-5) 평가 타이어
-    2-5-1) Ref. : 사이즈(${common.tire_ref.size}), 패턴(${common.tire_ref.pattern}), 브랜드(${common.tire_ref.brand}), 마킹(${common.tire_ref.marking})
-    2-5-2) Sample : 사이즈(${common.tire_sample.size}), 패턴(${common.tire_sample.pattern}), 브랜드(${common.tire_sample.brand}), 마킹(${common.tire_sample.marking})
+<p>&nbsp; 2-5) 평가 타이어 :</p>
+<p>&nbsp; &nbsp; &nbsp;- Ref. : 사이즈(${common.tire_ref.size}), 패턴(${common.tire_ref.pattern}), 브랜드(${common.tire_ref.brand}), 마킹(${common.tire_ref.marking})</p>
+<p>&nbsp; &nbsp; &nbsp;- Sample : 사이즈(${common.tire_sample.size}), 패턴(${common.tire_sample.pattern}), 브랜드(${common.tire_sample.brand}), 마킹(${common.tire_sample.marking})</p>
 
-  2-6) 평가 공기압/휠 : ${common.pressure}
-  2-7) 평가 차량 : ${common.vehicle}
-  2-8) 평가 온도 :
-${data.map(d => `   2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d.temp_road}`).join('\n')}
+<p>&nbsp; 2-6) 평가 공기압/휠 : ${common.pressure}</p>
+<p>&nbsp; 2-7) 평가 차량 : ${common.vehicle}</p>
+<p>&nbsp; 2-8) 평가 온도 :</p>
+${data.map(d => `<p>&nbsp; &nbsp;2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d.temp_road}</p>`).join('')}
+<p><br></p>
 
-3. Test Results
-  3-1) 제조품질 성능검증결과
+<p><b>3. Test Results</b></p>
+<p>&nbsp; 3-1) 제조품질 성능검증결과</p>
     <table class="result-table">
         <tr>
             <th style="width: 25%;">Spec.</th>
@@ -194,7 +207,7 @@ ${data.map(d => `   2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d
             <th style="width: 15%;">진동 수준</th>
             <th style="width: 25%;">비고 (발생속도 및 기타)</th>
             <th rowspan="${(common.tire_sample.markings_list.length || 0) + 2}" class="note-cell">
-                ※ 제조품질 성능수준<br><br>
+                ※ 제조품질 성능수준<br>
                 수준1 : 양호~경미 (거의 신경 쓰이지 않음)<br>
                 수준2 : 중간 (인지 수준이나, 불쾌감 적음)<br>
                 수준3 : 강함 (명확히 인지되며, 불쾌감 유발)
@@ -204,22 +217,23 @@ ${data.map(d => `   2-8-${d.day}) Day${d.day} : 대기 ${d.temp_air}, 노면 ${d
             <td>Ref.</td>
             <td>${qualitySelect()}</td>
             <td>${qualitySelect()}</td>
-            <td><input type="text" value="-" style="width: 90%;"></td>
+            <td><span class="editable-text" contenteditable="true" style="width: 90%;">-</span></td>
         </tr>
         ${(common.tire_sample.markings_list || []).map(m => `
             <tr>
-                <td><input type="text" value="${m}" style="width: 90%;"></td>
+                <td><span class="editable-text" contenteditable="true" style="width: 90%;">${m}</span></td>
                 <td>${qualitySelect()}</td>
                 <td>${qualitySelect()}</td>
-                <td><input type="text" value="-" style="width: 90%;"></td>
+                <td><span class="editable-text" contenteditable="true" style="width: 90%;">-</span></td>
             </tr>
         `).join('')}
     </table>
+<p><br></p>
 
-  3-2) 로드노이즈 <span style="color: blue;">[Target : 부밍 ${targetSelect('m-target-booming')}dB(A), 캐비티 ${targetSelect('m-target-cavity')}dB(A), 럼블 ${targetSelect('m-target-rumble')}dB(A)]</span>
-    - <textarea class="input-area" id="m-roadnoise-text" rows="2" onkeydown="handleAutoDash(event)">- </textarea>
+<p>&nbsp; 3-2) 로드노이즈 <span style="color: blue; font-weight: bold;">[Target : 부밍 ${targetSelect('m-target-booming')}dB(A), 캐비티 ${targetSelect('m-target-cavity')}dB(A), 럼블 ${targetSelect('m-target-rumble')}dB(A)]</span></p>
+<div class="editable-block" contenteditable="true" onkeydown="handleAutoDash(event)" style="margin-left: 15px;">- </div>
 ${data.map(d => `
-    ${multiDay ? `    3-2-${d.day}) Day${d.day}` : ''}
+    ${multiDay ? `<p>&nbsp; &nbsp; 3-2-${d.day}) Day${d.day}</p>` : ''}
     <div class="chart-grid">
         <div class="chart-wrapper"><canvas id="chart-rr-flw-${d.day}"></canvas></div>
         <div class="chart-wrapper"><canvas id="chart-rr-fli-${d.day}"></canvas></div>
@@ -228,37 +242,40 @@ ${data.map(d => `
     </div>
 `).join('\n')}
 
-  3-3) 패턴노이즈 <span style="color: blue;">[Target : 패턴 ${targetSelect('m-target-pattern')}dB(A)]</span>
-    - <textarea class="input-area" id="m-patternnoise-text" rows="2" onkeydown="handleAutoDash(event)">- </textarea>
+<p>&nbsp; 3-3) 패턴노이즈 <span style="color: blue; font-weight: bold;">[Target : 패턴 ${targetSelect('m-target-pattern')}dB(A)]</span></p>
+<div class="editable-block" contenteditable="true" onkeydown="handleAutoDash(event)" style="margin-left: 15px;">- </div>
 ${data.map(d => `
-    ${multiDay ? `    3-3-${d.day}) Day${d.day}` : ''}
+    ${multiDay ? `<p>&nbsp; &nbsp; 3-3-${d.day}) Day${d.day}</p>` : ''}
     <div class="chart-grid">
         <div class="chart-wrapper"><canvas id="chart-sr-flw-${d.day}"></canvas></div>
         <div class="chart-wrapper"><canvas id="chart-sr-fli-${d.day}"></canvas></div>
     </div>
 `).join('\n')}
 
-  3-4) 실내소음 정량치 결과
+<p>&nbsp; 3-4) 실내소음 정량치 결과</p>
 ${data.map(d => `
-    ${multiDay ? `    3-4-${d.day}) Day${d.day}` : ''}
+    ${multiDay ? `<p>&nbsp; &nbsp; 3-4-${d.day}) Day${d.day}</p>` : ''}
     <div class="table-container">${renderReportTable(d.table_3_4_1)}</div>
     <div class="table-container">${renderReportTable(d.table_3_4_2)}</div>
 `).join('\n')}
 
-  3-5) 추가 분석 : 구조 민감도 정리
-    <div id="m-analysis-container"></div>
+<p>&nbsp; 3-5) 추가 분석 : 구조 민감도 정리</p>
+<div id="m-analysis-container"></div>
+<p><br></p>
 
-  4. Test Summary
-    <div id="m-summary-container">
-        <div class="dynamic-row-item" style="display: flex; align-items: center;">
-            <span class="row-num" style="min-width: 35px;">4-1)</span>
-            <textarea class="input-area-dynamic" style="flex: 1; margin: 2px 0;" rows="1"></textarea>
-        </div>
+<p><b><span style="color: blue;">4. Test Summary</span></b></p>
+<div id="m-summary-container">
+    <div class="dynamic-row-item" style="margin-bottom: 2px;">
+        <span class="row-num" style="display:inline-block; min-width: 35px;">&nbsp; 4-1)</span>
+        <span class="editable-text" contenteditable="true" style="min-width: 300px;"></span>
     </div>
+</div>
+<p><br></p>
 
-  5. 첨부
-    5-1) NVH 실차평가 보고서 ---- ${data.length}개 파일
-    <div id="m-attach-container"></div>
+<p><b><span style="color: blue;">5. 첨부</span></b></p>
+<p>&nbsp; 5-1) NVH 실차평가 보고서 ---------------------------------- ${data.length}부</p>
+<div id="m-attach-container"></div>
+
 </div>
         `;
         form.innerHTML = html;
@@ -282,24 +299,78 @@ ${data.map(d => `
     }
 
     function qualitySelect() {
-        return `<select style="padding: 2px;"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>`;
+        return `<select style="padding: 2px; border: none; outline: none; background: transparent;"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>`;
     }
 
     function targetSelect(id) {
-        return `<select style="border:none; color: blue; font-weight:bold;" id="${id}">
+        return `<select style="border:none; color: blue; font-weight:bold; background: transparent; outline: none;" id="${id}">
             <option value="-1">-1</option><option value="-0.5">-0.5</option>
             <option value="동등" selected>동등</option><option value="+0.5">+0.5</option><option value="+1">+1</option>
         </select>`;
     }
 
     function renderReportTable(data) {
-        if (!data || data.length === 0) return '';
-        let html = '<table class="report-data-table">';
-        data.forEach(row => {
+        if (!data || data.length < 5) return '';
+
+        // Header Structure (Rows 0-3 in data are headers)
+        // Row 0: ['FLI', null, 'Rough Road(RR)', null, ...]
+        // Row 1: [null, null, '60kph', null, ...]
+        // Row 2: [null, null, '20~500Hz', null, '20~178Hz', ...]
+        // Row 3: [null, null, 'OA', null, 'Booming', ...]
+
+        let html = '<table class="report-data-table" style="width: 100%; border-collapse: collapse; margin-left: 0px; margin-top: 10px; border: 1px solid #000; font-size: 8.5pt;">';
+        
+        // Find header info
+        const category = data[0][0]; // FLI or RCC
+        
+        // Render Header
+        html += `<tr style="background:#eee;"><th rowspan="3" style="border:1px solid #000; width: 60px;">${category}</th><th colspan="10" style="border:1px solid #000;">Road Noise (Rough Road)</th><th colspan="2" style="border:1px solid #000;">Pattern Noise (Smooth Road)</th></tr>`;
+        html += `<tr style="background:#eee;"><th colspan="2" style="border:1px solid #000;">20~500Hz</th><th colspan="2" style="border:1px solid #000;">20~178Hz</th><th colspan="2" style="border:1px solid #000;">178~224Hz</th><th colspan="2" style="border:1px solid #000;">178~224Hz</th><th colspan="2" style="border:1px solid #000;">224~500Hz</th><th colspan="2" style="border:1px solid #000;">500~4000Hz</th></tr>`;
+        html += `<tr style="background:#eee;"><th colspan="2" style="border:1px solid #000;">OA</th><th colspan="2" style="border:1px solid #000;">Booming</th><th colspan="2" style="border:1px solid #000;">Cavity Peak</th><th colspan="2" style="border:1px solid #000;">Cavity RMS</th><th colspan="2" style="border:1px solid #000;">Rumble</th><th colspan="2" style="border:1px solid #000;">OA</th></tr>`;
+
+        // Identify REF row for delta calculation
+        const refRowIdx = data.findIndex(r => r[0] === 'REF');
+        if (refRowIdx === -1) return 'REF 데이터를 찾을 수 없습니다.';
+        const refRow = data[refRowIdx];
+
+        // Process Data Rows (starting from row index 4 typically, but we use REF identification)
+        data.forEach((row, idx) => {
+            if (idx < 4) return; // Skip headers
+            if (!row[0]) return; // Skip empty rows
+
             html += '<tr>';
-            row.forEach(cell => html += `<td>${cell !== null ? cell : ''}</td>`);
+            html += `<td style="border:1px solid #000; font-weight:bold;">${row[0]}</td>`; // Spec Name
+
+            // Column indices in 'Report' sheet for OA, Booming, etc.
+            // Based on inspection: B=0, D=2(OA), F=4(Booming), H=6(Cav Peak), J=8(Cav RMS), L=10(Rumble), N=12(Pattern OA)
+            const dataCols = [2, 4, 6, 8, 10, 12];
+            
+            dataCols.forEach(colIdx => {
+                const val = row[colIdx];
+                const formattedVal = (typeof val === 'number') ? val.toFixed(1) : (val || '-');
+                html += `<td style="border:1px solid #000;">${formattedVal}</td>`;
+
+                // Delta Calculation
+                if (row[0] === 'REF') {
+                    html += `<td style="border:1px solid #000; color:#888; font-size:8pt;">-</td>`;
+                } else {
+                    const refVal = refRow[colIdx];
+                    if (typeof val === 'number' && typeof refVal === 'number') {
+                        const delta = val - refVal;
+                        let style = '';
+                        if (delta >= 0.3) style = 'background-color: #ffcccc; color: #cc0000; font-weight:bold;';
+                        else if (delta <= -0.3) style = 'background-color: #cce5ff; color: #0000cc; font-weight:bold;';
+                        
+                        const deltaStr = delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1);
+                        html += `<td style="border:1px solid #000; ${style}">${deltaStr}</td>`;
+                    } else {
+                        html += `<td style="border:1px solid #000;">-</td>`;
+                    }
+                }
+            });
             html += '</tr>';
         });
+
         html += '</table>';
         return html;
     }
@@ -318,8 +389,9 @@ ${data.map(d => `
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
-                    title: { display: true, text: title },
+                    title: { display: true, text: title, font: { size: 10 } },
                     legend: {
+                        labels: { boxWidth: 10, font: { size: 9 } },
                         onClick: (e, item, legend) => {
                             const index = item.datasetIndex;
                             legend.chart.data.datasets.forEach((ds, i) => ds.borderWidth = (i === index) ? 3 : 1);
@@ -328,7 +400,7 @@ ${data.map(d => `
                     },
                     zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
                 },
-                scales: { x: { type: 'linear' }, y: { type: 'linear' } }
+                scales: { x: { type: 'linear', ticks: { font: { size: 9 } } }, y: { type: 'linear', ticks: { font: { size: 9 } } } }
             }
         });
         charts.push(chart);
@@ -338,11 +410,11 @@ ${data.map(d => `
         const container = document.getElementById('extra-places-container');
         const div = document.createElement('div');
         div.className = 'dynamic-row-item';
-        div.style.display = 'flex'; div.style.marginBottom = '2px';
         div.innerHTML = `
-            <span style="min-width: 120px;">- 평가장소 : 노면 :</span>
-            <input type="text" class="input-field" style="flex: 1; border:none; border-bottom:1px solid #ccc;">
-            <button class="btn-remove-small" onclick="this.parentElement.remove()" style="background: #e74c3c; color: white; border: none; cursor: pointer;">×</button>
+            <p>- <span class="editable-text" contenteditable="true" style="min-width: 100px;">평가장소</span> : 
+               <span class="editable-text" contenteditable="true" style="min-width: 200px;">노면</span>
+               <button class="btn-remove-small" onclick="this.parentElement.parentElement.remove()" style="background: #e74c3c; color: white; border: none; cursor: pointer; padding: 2px 5px; font-size: 10px;">×</button>
+            </p>
         `;
         container.appendChild(div);
     };
@@ -355,15 +427,18 @@ ${data.map(d => `
         formClone.querySelector('.edit-controls')?.remove();
         formClone.querySelectorAll('button').forEach(b => b.remove());
 
-        // Replace inputs/selects with spans
-        formClone.querySelectorAll('input, textarea, select').forEach(el => {
+        // Replace contenteditables and selects with plain spans/text
+        formClone.querySelectorAll('[contenteditable="true"]').forEach(el => {
+            el.removeAttribute('contenteditable');
+            el.style.border = 'none';
+            el.style.outline = 'none';
+        });
+
+        formClone.querySelectorAll('select').forEach(el => {
             const span = document.createElement('span');
-            span.textContent = el.value || (el.options ? el.options[el.selectedIndex].text : '-');
-            if (el.tagName === 'TEXTAREA') {
-                span.style.whiteSpace = 'pre-wrap';
-                span.style.display = 'block';
-            }
-            span.style.fontWeight = 'bold';
+            span.textContent = el.options[el.selectedIndex].text;
+            span.style.color = el.style.color;
+            span.style.fontWeight = el.style.fontWeight;
             el.parentNode.replaceChild(span, el);
         });
 
@@ -378,9 +453,10 @@ ${data.map(d => `
         });
 
         const finalHtml = `
-            <div style="background: #fff; padding: 40px; border: 1px solid #000; font-family: 'Malgun Gothic'; width: 210mm; margin: 0 auto;">
-                <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${formClone.innerHTML}</div>
-            </div>
+            <html><head><style>p { font-size : 9pt; font-family : '맑은 고딕', sans-serif; margin:0px; line-height:180%; }</style></head>
+            <body style="font-size: 9pt; font-family: '맑은 고딕', sans-serif; background: #fff; padding: 40px;">
+                ${formClone.innerHTML}
+            </body></html>
         `;
 
         const payload = {
