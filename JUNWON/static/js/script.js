@@ -318,14 +318,15 @@ ${data.map(d => `
         // Row 2: [null, null, '20~500Hz', null, '20~178Hz', ...]
         // Row 3: [null, null, 'OA', null, 'Booming', ...]
 
-        let html = '<table class="report-data-table" style="width: 100%; border-collapse: collapse; margin-left: 0px; margin-top: 10px; border: 1px solid #000; font-size: 8.5pt;">';
+        let html = '<table class="report-data-table" style="width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #000; font-size: 8.5pt; table-layout: fixed;">';
         
         // Find header info
         const category = data[0][0]; // FLI or RCC
         
-        // Render Header
-        html += `<tr style="background:#eee;"><th rowspan="3" style="border:1px solid #000; width: 60px;">${category}</th><th colspan="10" style="border:1px solid #000;">Road Noise (Rough Road)</th><th colspan="2" style="border:1px solid #000;">Pattern Noise (Smooth Road)</th></tr>`;
-        html += `<tr style="background:#eee;"><th colspan="2" style="border:1px solid #000;">20~500Hz</th><th colspan="2" style="border:1px solid #000;">20~178Hz</th><th colspan="2" style="border:1px solid #000;">178~224Hz</th><th colspan="2" style="border:1px solid #000;">178~224Hz</th><th colspan="2" style="border:1px solid #000;">224~500Hz</th><th colspan="2" style="border:1px solid #000;">500~4000Hz</th></tr>`;
+        // Render Header with fixed widths to ensure equality
+        // Category(70px) + 6 categories (each 15% of the rest)
+        html += `<tr style="background:#eee;"><th rowspan="3" style="border:1px solid #000; width: 70px;">${category}</th><th colspan="10" style="border:1px solid #000;">Road Noise (Rough Road)</th><th colspan="2" style="border:1px solid #000; width: 15%;">Pattern Noise (Smooth Road)</th></tr>`;
+        html += `<tr style="background:#eee;"><th colspan="2" style="border:1px solid #000; width: 15.5%;">20~500Hz</th><th colspan="2" style="border:1px solid #000; width: 15.5%;">20~178Hz</th><th colspan="2" style="border:1px solid #000; width: 15.5%;">178~224Hz</th><th colspan="2" style="border:1px solid #000; width: 15.5%;">178~224Hz</th><th colspan="2" style="border:1px solid #000; width: 15.5%;">224~500Hz</th><th colspan="2" style="border:1px solid #000; width: 15.5%;">500~4000Hz</th></tr>`;
         html += `<tr style="background:#eee;"><th colspan="2" style="border:1px solid #000;">OA</th><th colspan="2" style="border:1px solid #000;">Booming</th><th colspan="2" style="border:1px solid #000;">Cavity Peak</th><th colspan="2" style="border:1px solid #000;">Cavity RMS</th><th colspan="2" style="border:1px solid #000;">Rumble</th><th colspan="2" style="border:1px solid #000;">OA</th></tr>`;
 
         // Identify REF row for delta calculation
