@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnia - NVH Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
+        .sidebar { height: 100vh; position: fixed; left: 0; top: 0; width: 300px; background: #343a40; color: white; overflow-y: auto; padding: 20px; z-index: 1000; }
+        .main-content { margin-left: 300px; padding: 20px; }
+        .tree-node { list-style: none; padding-left: 20px; margin: 5px 0; }
+        .tree-btn { background: none; border: none; color: white; cursor: pointer; font-size: 1.1rem; padding: 0; margin-right: 5px; }
+        .leaf-btn { background: none; border: none; color: #adb5bd; cursor: pointer; padding: 5px 10px; width: 100%; text-align: left; }
+        .leaf-btn:hover { background: #495057; color: white; }
+        .leaf-btn.active { background: #0d6efd; color: white; }
+        .card { margin-bottom: 20px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+        .highlight { background-color: #e3f2fd !important; }
+        h1.title { font-weight: bold; font-size: 3rem; text-align: center; margin-bottom: 30px; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        .table-responsive { max-height: 400px; overflow-y: auto; }
+        .plot-controls { background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h4>Navigation</h4>
+    <ul id="tree-root" style="padding-left: 0;">
+        {% for v, sizes in data.items() %}
+        <li class="tree-node">
+            <button class="tree-btn" onclick="toggleTree(this)">-</button> 🚗 <strong>{{ v }}</strong>
+            <ul>
+                {% for s, rounds in sizes.items() %}
+                <li class="tree-node">
+                    <button class="tree-btn" onclick="toggleTree(this)">-</button> 🛞 {{ s }}
+                    <ul>
+                        {% for r, r_data in rounds.items() %}
+                        <li>
+                            <button class="leaf-btn" onclick="loadData('{{ v }}', '{{ s }}', '{{ r }}', this)">
+                                📅 {{ r }} ({{ r_data.Date }})
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </li>
+                {% endfor %}
+            </ul>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="main-content">
+    <h1 class="title">Omnia</h1>
+
+    <div id="dashboard-content" style="display: none;">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title" id="plot-title">Performance by Spec</h5>
+                <div class="chart-container">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Structural Specifications & Changes</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm" id="struct-table">
+                        <thead><tr id="struct-header"></tr></thead>
+                        <tbody id="struct-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">NVH Vehicle Interior Noise (RMS)</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm" id="nvh-table">
+                                <thead><tr id="nvh-header"></tr></thead>
+                                <tbody id="nvh-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Component Performance Results</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm" id="comp-table">
+                                <thead><tr id="comp-header"></tr></thead>
+                                <tbody id="comp-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+        <h3>Custom Evaluation Results Plotter</h3>
+        <div id="custom-plots-container"></div>
+        <div class="mt-3">
+            <button class="btn btn-primary" onclick="addCustomPlot()">➕ Add Plot</button>
+        </div>
+    </div>
+    
+    <div id="welcome-msg" class="text-center mt-5 text-muted">
+        <h3>Please select a development round from the sidebar.</h3>
+    </div>
+</div>
+
+<script>
+    let currentData = null;
+    let mainChart = null;
+    let customPlotsCount = 0;
+
+    function toggleTree(btn) {
+        const ul = btn.parentElement.querySelector('ul');
+        if (ul.style.display === 'none') {
+            ul.style.display = 'block';
+            btn.innerText = '-';
+        } else {
+            ul.style.display = 'none';
+            btn.innerText = '+';
+        }
+    }
+
+    async function loadData(v, s, r, btn) {
+        document.querySelectorAll('.leaf-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const response = await fetch(`/api/data/${v}/${s}/${r}`);
+        currentData = await response.json();
+        
+        document.getElementById('welcome-msg').style.display = 'none';
+        document.getElementById('dashboard-content').style.display = 'block';
+        document.getElementById('plot-title').innerText = `Performance by Spec: ${v} - ${s} - ${r}`;
+        
+        renderMainChart();
+        renderStructTable();
+        renderTable('nvh-table', currentData.NVH);
+        renderTable('comp-table', currentData.Component);
+        
+        // Reset custom plots if data changes? No, keep them but update data
+        updateAllCustomPlots();
+    }
+
+    function renderMainChart() {
+        if (mainChart) mainChart.destroy();
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        const specs = currentData.NVH.map(d => d.Spec);
+        const keys = Object.keys(currentData.NVH[0]).filter(k => k !== 'Spec');
+        
+        const datasets = keys.map((key, i) => ({
+            label: key,
+            data: currentData.NVH.map(d => d[key]),
+            borderColor: `hsl(${i * 60}, 70%, 50%)`,
+            fill: false,
+            tension: 0.1
+        }));
+
+        mainChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: specs, datasets: datasets },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function renderStructTable() {
+        const header = document.getElementById('struct-header');
+        const body = document.getElementById('struct-body');
+        header.innerHTML = '';
+        body.innerHTML = '';
+
+        if (!currentData.Structural.length) return;
+
+        const cols = Object.keys(currentData.Structural[0]);
+        cols.forEach(col => {
+            const th = document.createElement('th');
+            th.innerText = col;
+            header.appendChild(th);
+        });
+
+        currentData.Structural.forEach((row, i) => {
+            const tr = document.createElement('tr');
+            cols.forEach(col => {
+                const td = document.createElement('td');
+                td.innerText = row[col];
+                
+                if (i > 0 && col !== 'Spec') {
+                    if (row[col] !== currentData.Structural[i-1][col]) {
+                        td.classList.add('highlight');
+                    }
+                }
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        });
+    }
+
+    function renderTable(id, data) {
+        const header = document.getElementById(`${id.split('-')[0]}-header`);
+        const body = document.getElementById(`${id.split('-')[0]}-body`);
+        header.innerHTML = '';
+        body.innerHTML = '';
+
+        if (!data.length) return;
+        const cols = Object.keys(data[0]);
+        cols.forEach(col => {
+            const th = document.createElement('th');
+            th.innerText = col;
+            header.appendChild(th);
+        });
+
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            cols.forEach(col => {
+                const td = document.createElement('td');
+                td.innerText = row[col];
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        });
+    }
+
+    function addCustomPlot() {
+        customPlotsCount++;
+        const id = customPlotsCount;
+        const container = document.getElementById('custom-plots-container');
+        
+        const div = document.createElement('div');
+        div.className = 'plot-controls card';
+        div.id = `plot-container-${id}`;
+        
+        const allKeys = [...Object.keys(currentData.NVH[0]), ...Object.keys(currentData.Component[0])].filter((v, i, a) => a.indexOf(v) === i);
+        
+        div.innerHTML = `
+            <div class="card-body">
+                <div class="row align-items-end mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">X-Axis</label>
+                        <select class="form-select x-axis" onchange="updateCustomPlot(${id})">
+                            ${allKeys.map(k => `<option value="${k}">${k}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Y-Axis (Multiple)</label>
+                        <select class="form-select y-axis" multiple onchange="updateCustomPlot(${id})" style="height: 100px;">
+                            ${allKeys.map(k => `<option value="${k}" ${k==='Booming'?'selected':''}>${k}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <button class="btn btn-danger btn-sm" onclick="removeCustomPlot(${id})">Remove</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="customChart-${id}"></canvas>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+        updateCustomPlot(id);
+    }
+
+    const charts = {};
+
+    function updateCustomPlot(id) {
+        const container = document.getElementById(`plot-container-${id}`);
+        const xAxis = container.querySelector('.x-axis').value;
+        const yAxis = Array.from(container.querySelector('.y-axis').selectedOptions).map(o => o.value);
+        
+        if (charts[id]) charts[id].destroy();
+        
+        const ctx = document.getElementById(`customChart-${id}`).getContext('2d');
+        
+        // Merge NVH and Component data based on Spec
+        const mergedData = currentData.NVH.map((item, index) => {
+            return {...item, ...currentData.Component[index]};
+        });
+
+        const datasets = yAxis.map((key, i) => ({
+            label: key,
+            data: mergedData.map(d => d[key]),
+            borderColor: `hsl(${i * 60 + 120}, 70%, 50%)`,
+            fill: false,
+            tension: 0.1
+        }));
+
+        charts[id] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: mergedData.map(d => d[xAxis]),
+                datasets: datasets
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function removeCustomPlot(id) {
+        document.getElementById(`plot-container-${id}`).remove();
+        if (charts[id]) {
+            charts[id].destroy();
+            delete charts[id];
+        }
+    }
+
+    function updateAllCustomPlots() {
+        Object.keys(charts).forEach(id => updateCustomPlot(id));
+    }
+</script>
+
+</body>
+</html>
