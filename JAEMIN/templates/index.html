@@ -609,14 +609,21 @@
     function jumpToData(v, s, rList, comment, scatterImg) {
         const rounds = rList.split(',');
         
-        // 1. Activate Size (This clears other sizes' states in handleSizeCheck)
+        // 1. Clear ALL existing selections to ensure strict isolation
+        document.querySelectorAll('.size-checkbox, .round-checkbox, .spec-checkbox').forEach(cb => cb.checked = false);
+        currentView.rounds = [];
+        currentView.specs = {};
+
+        // 2. Activate specific Size
         const sizeCb = document.querySelector(`.size-checkbox[data-vehicle="${v}"][data-size="${s}"]`);
         if (sizeCb) {
             sizeCb.checked = true;
-            handleSizeCheck(sizeCb);
+            // Note: handleSizeCheck normally populates all rounds, but we want strict control here
+            currentView.vehicle = v;
+            currentView.size = s;
         }
 
-        // 2. Activate Specific Rounds from the list ONLY for this vehicle and size
+        // 3. Activate ONLY the specific Rounds from the board item
         document.querySelectorAll('.round-checkbox').forEach(cb => {
             const r = cb.dataset.round;
             const cv = cb.dataset.vehicle;
@@ -624,20 +631,25 @@
             
             if (cv === v && cs === s && rounds.includes(r)) {
                 cb.checked = true;
-            } else {
-                cb.checked = false;
+                if (!currentView.rounds.includes(r)) currentView.rounds.push(r);
+                // Also activate all specs for these specific rounds
+                currentView.specs[r] = [...rawData[v][s][r].Specs];
+                document.querySelectorAll('.spec-checkbox').forEach(scb => {
+                    if (scb.dataset.round === r && scb.dataset.vehicle === v && scb.dataset.size === s) {
+                        scb.checked = true;
+                    }
+                });
             }
         });
-        currentView.rounds = [...rounds];
 
-        // 3. Restore View and Show saved plot at the top of plotter
+        // 4. Update Board Visibility and Refresh Dashboard
+        loadBoard(v, s, currentView.rounds);
         renderDashboard();
         
-        // Remove any existing "Restored Insight" box before adding a new one
+        // 5. Manage Insight Box
         const existingInsight = document.querySelector('.restored-insight-box');
         if (existingInsight) existingInsight.remove();
 
-        // Add a special "Restored Insight" box
         const container = document.getElementById('custom-plots-container');
         const insightDiv = document.createElement('div');
         insightDiv.className = 'plot-box card shadow-sm border-primary mb-4 restored-insight-box';
