@@ -1,8 +1,38 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import random
+import sqlite3
+import os
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+# --- Database Setup ---
+DB_PATH = 'omnia_board.db'
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS board (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehicle TEXT,
+            size TEXT,
+            round TEXT,
+            scatter_data TEXT,
+            comment TEXT,
+            author TEXT,
+            date TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+if not os.path.exists(DB_PATH):
+    init_db()
 
 # --- Mock Data Generation ---
 def generate_mock_data():
@@ -74,6 +104,32 @@ def index():
 @app.route('/api/data/<v>/<s>/<r>')
 def get_data(v, s, r):
     return jsonify(MOCK_DATA.get(v, {}).get(s, {}).get(r, {}))
+
+@app.route('/api/board', methods=['GET', 'POST'])
+def board():
+    if request.method == 'POST':
+        req_data = request.json
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO board (vehicle, size, round, scatter_data, comment, author, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            req_data.get('vehicle'),
+            req_data.get('size'),
+            req_data.get('round'),
+            req_data.get('scatter_data'),
+            req_data.get('comment'),
+            req_data.get('author', 'Anonymous'),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "success"})
+    else:
+        conn = get_db_connection()
+        rows = conn.execute('SELECT * FROM board ORDER BY date DESC').fetchall()
+        conn.close()
+        return jsonify([dict(row) for row in rows])
 
 if __name__ == '__main__':
     app.run(debug=True)
