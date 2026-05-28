@@ -148,9 +148,11 @@ def extract_data():
         total = len(saved_files)
         try:
             for i, (path, name) in enumerate(saved_files):
-                pct = 5 + (i/total)*90
+                base_pct = (i / total) * 100
+                file_pct = 100 / total
                 step = f"[{i+1}/{total}]"
-                yield f"data: {json.dumps({'status': 'progress', 'percent': int(pct), 'message': f'{step} {name} 분석 중...'})}\n\n"
+                
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.05), 'message': f'{step} {name} 엑셀 파일 로드 중...'})}\n\n"
                 
                 wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
                 db_s = wb['DB'] if 'DB' in wb.sheetnames else None
@@ -159,6 +161,8 @@ def extract_data():
                 sr_s = wb['SR'] if 'SR' in wb.sheetnames else None
 
                 day_data = {'day': i+1}
+                
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.2), 'message': f'{step} {name} 기본 정보(DB 시트) 추출 중...'})}\n\n"
                 if db_s:
                     g22_val = get_val(db_s, 'G22')
                     g17_val = get_val(db_s, 'G17')
@@ -187,14 +191,20 @@ def extract_data():
                         'temp_air': get_min_max(db_s, 'G39~Q39'), 'temp_road': get_min_max(db_s, 'G40~Q40')
                     })
                 
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.4), 'message': f'{step} {name} 정량치(Report 시트) 추출 중...'})}\n\n"
                 if rep_s:
                     day_data['table_3_4_1'] = get_table_data(rep_s, 'B22', 'O36')
                     day_data['table_3_4_2'] = get_table_data(rep_s, 'B38', 'O52')
                 
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.6), 'message': f'{step} {name} 로드노이즈(RR 시트) 추출 중...'})}\n\n"
                 if rr_s:
                     day_data['spectrum_rr'] = get_spectrum_data(rr_s, [1, 15, 29, 43])
+                    
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.8), 'message': f'{step} {name} 패턴노이즈(SR 시트) 추출 중...'})}\n\n"
                 if sr_s:
                     day_data['spectrum_sr'] = get_spectrum_data(sr_s, [1, 15, 29, 43])
+
+                yield f"data: {json.dumps({'status': 'progress', 'percent': int(base_pct + file_pct * 0.95), 'message': f'{step} {name} 분석 마무리 중...'})}\n\n"
 
                 res.append(day_data)
                 wb.close(); os.remove(path)
