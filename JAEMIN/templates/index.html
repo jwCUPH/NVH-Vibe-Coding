@@ -6,6 +6,7 @@
     <title>Omnia - NVH Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; }
         .sidebar { height: 100vh; position: fixed; left: 0; top: 0; width: 320px; background: #2c3e50; color: white; overflow-y: auto; padding: 20px; z-index: 1000; }
@@ -431,11 +432,12 @@
                     <select class="form-select x-axis" onchange="updatePlot(${id})">
                         <option value="Spec">Spec</option>
                         <option value="Round">Round</option>
+                        ${allKeys.map(k => `<option value="${k}">${k}</option>`).join('')}
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Y-Axis (Select Multiple)</label>
-                    <select class="form-select y-axis" multiple onchange="updatePlot(${id})" style="height: 100px;">
+                    <label class="form-label">Y-Axis</label>
+                    <select class="form-select y-axis" onchange="updatePlot(${id})">
                         ${allKeys.map(k => `<option value="${k}" ${k==='Booming'?'selected':''}>${k}</option>`).join('')}
                     </select>
                 </div>
@@ -459,7 +461,7 @@
     function updatePlot(id) {
         const card = document.getElementById(`plot-card-${id}`);
         const xAxis = card.querySelector('.x-axis').value;
-        const yAxes = Array.from(card.querySelector('.y-axis').selectedOptions).map(o => o.value);
+        const yAxis = card.querySelector('.y-axis').value;
         
         const mergedData = [];
         currentView.rounds.forEach(r => {
@@ -479,23 +481,72 @@
         if (charts[id]) charts[id].destroy();
         const ctx = document.getElementById(`canvas-${id}`).getContext('2d');
 
-        const datasets = yAxes.map((key, i) => ({
-            label: key,
-            data: mergedData.map(d => d[key]),
-            borderColor: `hsl(${i * 70}, 70%, 50%)`,
-            backgroundColor: `hsl(${i * 70}, 70%, 50%, 0.5)`,
+        const isMetricX = !['Spec', 'Round'].includes(xAxis);
+        const chartType = isMetricX ? 'scatter' : 'line';
+
+        const color = `hsl(210, 70%, 50%)`;
+        const datasets = [{
+            label: yAxis,
+            data: mergedData.map(d => {
+                if (isMetricX) {
+                    return { x: d[xAxis], y: d[yAxis], label: `${d.Round}-${d.Spec}` };
+                } else {
+                    return d[yAxis];
+                }
+            }),
+            borderColor: color,
+            backgroundColor: color + '80',
             fill: false,
             tension: 0.1,
-            pointRadius: 5
-        }));
+            pointRadius: 6,
+            pointHoverRadius: 8
+        }];
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (isMetricX) {
+                                const d = context.raw;
+                                return `${d.label}: (${xAxis}: ${d.x}, ${yAxis}: ${d.y})`;
+                            }
+                            return `${yAxis}: ${context.parsed.y}`;
+                        }
+                    }
+                },
+                datalabels: {
+                    align: 'top',
+                    anchor: 'end',
+                    offset: 8,
+                    formatter: (value, context) => {
+                        if (isMetricX) return value.label;
+                        return mergedData[context.dataIndex].Round + '-' + mergedData[context.dataIndex].Spec;
+                    },
+                    font: { size: 10, weight: 'bold' },
+                    color: '#2c3e50'
+                }
+            }
+        };
+
+        if (isMetricX) {
+            options.scales = {
+                x: { title: { display: true, text: xAxis } },
+                y: { title: { display: true, text: yAxis } }
+            };
+        }
 
         charts[id] = new Chart(ctx, {
-            type: 'line', // User asked for Scatter, but Line with points is often clearer for spec history. 
+            type: chartType,
             data: {
-                labels: mergedData.map(d => xAxis === 'Spec' ? `${d.Round}-${d.Spec}` : d.Round),
+                labels: isMetricX ? null : mergedData.map(d => xAxis === 'Spec' ? `${d.Round}-${d.Spec}` : d.Round),
                 datasets: datasets
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: options,
+            plugins: [ChartDataLabels]
         });
     }
 
@@ -555,7 +606,9 @@
         selectedRounds.forEach(r => grouped[r] = []);
         
         data.forEach(item => {
-            if (grouped[item.round]) {
+            if (item.round.includes(',')) {
+                grouped['Multi-Round'].push(item);
+            } else if (grouped[item.round]) {
                 grouped[item.round].push(item);
             }
         });
